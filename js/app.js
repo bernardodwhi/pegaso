@@ -29,8 +29,8 @@
     document.body.classList.add('is-locked');
 
     var value = 0, loaded = false, start = performance.now();
+    var CAP = 4000;   // teto duro: o portão abre mesmo com fotos ou CDN pendentes
     window.addEventListener('load', function () { loaded = true; });
-    setTimeout(function () { loaded = true; }, 4500);
 
     function open() {
       el.classList.add('is-open');
@@ -44,12 +44,17 @@
 
     function tick(now) {
       var elapsed = now - start;
-      var ceiling = loaded ? 100 : Math.min(92, elapsed / 22);
-      value = Math.min(ceiling, value + Math.max(0.6, (ceiling - value) * 0.06));
+      if (elapsed >= CAP) {
+        value = 100;
+      } else {
+        var free = loaded || elapsed >= CAP;
+        var ceiling = free ? 100 : Math.min(88, elapsed / 14);
+        value = Math.min(ceiling, value + Math.max(free ? 2.8 : 0.9, (ceiling - value) * 0.12));
+      }
       var shown = Math.floor(value);
       num.textContent = ('00' + shown).slice(-3);
       bar.style.width = value.toFixed(1) + '%';
-      if (shown >= 100) { setTimeout(open, 260); return; }
+      if (shown >= 100) { setTimeout(open, 200); return; }
       requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
@@ -96,77 +101,251 @@
   }
 
   /* =======================================================
-     ( 01 ) CAVALO EM PARTÍCULAS
+     ( 01 ) ANATOMIA — CAVALO DE SELA, FORMATO "QUADRADO"
+     -------------------------------------------------------
+     Proporções de referência, com a altura da cernelha H = 468:
+       corpo (ponta da espádua → nádega) ≈ H     → formato quadrado
+       solo → cotovelo ≈ H/2                     → membros longos
+       cabeça ≈ 0,40 H  ·  pescoço (nuca → cernelha) ≈ 1,5 cabeças
+       profundidade da cilha (cernelha → ventre) ≈ H/2, e o ventre
+       SOBE dali até o vazio: o ponto mais fundo é a cilha, não o meio
+     A cernelha é um pico acima da linha do dorso, o dorso é curto e
+     levemente côncavo e a garupa sobe de novo: é esse "S" do perfil
+     dorsal que separa o cavalo do asinino, cujo dorso é plano.
      ======================================================= */
+  var ANAT = {
+    W: 1000, H: 700, GROUND: 658,
+    // membros: origem, comprimentos dos segmentos e larguras nas juntas
+    fore: { len: [138, 104, 34], w: [52, 28, 20, 16] },
+    hind: { len: [154, 110, 34], w: [88, 32, 21, 16] },
+    // A origem fica DENTRO do tronco (escápula / coxa), não na borda:
+    // assim o topo do membro nunca abre fenda contra a linha do peito.
+    // [perto, longe] — o pequeno desvio sugere profundidade
+    foreAt: [[358, 386], [334, 392]],
+    hindAt: [[736, 372], [764, 370]],
+    // ângulos de repouso de cada cadeia (0 = a pino, positivo = à frente)
+    foreRest: [0.02, 0.00, 0.50],
+    hindRest: [-0.30, 0.16, 0.50]
+  };
 
-  // Silhueta de um cavalo em marcha, desenhada em canvas offscreen.
-  function drawHorse(ctx, W, H) {
-    ctx.save();
-    ctx.scale(W / 1000, H / 700);
-    ctx.fillStyle = '#fff';
-    ctx.strokeStyle = '#fff';
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
+  // Cadeia cinemática direta: devolve as posições das juntas.
+  function chain(origin, lens, angles) {
+    var pts = [[origin[0], origin[1]]];
+    for (var i = 0; i < lens.length; i++) {
+      pts.push([
+        pts[i][0] - Math.sin(angles[i]) * lens[i],
+        pts[i][1] + Math.cos(angles[i]) * lens[i]
+      ]);
+    }
+    return pts;
+  }
 
-    // --- cabeça, pescoço, tronco ---
+  // Assenta o casco no chão girando só a quartela — evita o pé
+  // "flutuando" nos extremos do apoio, quando o membro está inclinado.
+  function plant(pts, lenLast, ground) {
+    var f = pts[pts.length - 2];
+    var dy = ground - f[1];
+    if (dy <= 0 || dy >= lenLast) return pts;
+    var a = Math.acos(clamp(dy / lenLast, -1, 1));
+    pts[pts.length - 1] = [f[0] - Math.sin(a) * lenLast, ground];
+    return pts;
+  }
+
+  /* --- ciclo de marcha ------------------------------------
+     Marcha é andamento de 4 tempos sem suspensão: o apoio ocupa
+     ~62% do ciclo de cada membro, o que produz os momentos de
+     tríplice apoio que o laudo mede. Fases dos quatro membros na
+     ordem da marcha batida (posterior → diagonal anterior).      */
+  var STANCE = 0.62;
+  var LEG_PHASE = [0.65, 0.15, 0.00, 0.50]; // ant.perto, ant.longe, post.perto, post.longe
+
+  function swingEase(v) { return v * v * (3 - 2 * v); }
+
+  function foreAngles(p) {
+    var REACH = 0.36, TRAIL = -0.30, th1, fold = 0;
+    if (p < STANCE) {
+      th1 = REACH + (TRAIL - REACH) * (p / STANCE);
+    } else {
+      var v = (p - STANCE) / (1 - STANCE);
+      th1 = TRAIL + (REACH - TRAIL) * swingEase(v);
+      fold = Math.sin(Math.PI * v) * 1.15;
+    }
+    return [th1, th1 * 0.9 - fold, th1 * 0.9 - fold + 0.42];
+  }
+
+  function hindAngles(p) {
+    var REACH = 0.34, TRAIL = -0.32, r = ANAT.hindRest, d, fold = 0;
+    if (p < STANCE) {
+      d = REACH + (TRAIL - REACH) * (p / STANCE);
+    } else {
+      var v = (p - STANCE) / (1 - STANCE);
+      d = TRAIL + (REACH - TRAIL) * swingEase(v);
+      fold = Math.sin(Math.PI * v) * 1.05;
+    }
+    return [r[0] + d, r[1] + d * 0.8 + fold, r[2] + d * 0.5 + fold * 0.5];
+  }
+
+  // Juntas de um membro (0..3) na fase global t do ciclo. `bob` desloca
+  // a origem junto com o tronco — sem isso o membro descola do corpo.
+  function legJoints(i, t, bob) {
+    var p = (t + LEG_PHASE[i]) % 1;
+    if (p < 0) p += 1;
+    var fore = i < 2;
+    var cfg = fore ? ANAT.fore : ANAT.hind;
+    var a0 = (fore ? ANAT.foreAt : ANAT.hindAt)[i % 2];
+    var at = [a0[0], a0[1] + (bob || 0)];
+    var pts = chain(at, cfg.len, fore ? foreAngles(p) : hindAngles(p));
+    if (p < STANCE) plant(pts, cfg.len[2], ANAT.GROUND);
+    return { pts: pts, w: cfg.w, phase: p };
+  }
+
+  // Oscilação vertical do tronco: dois ciclos por passada, discreta.
+  function bodyBob(t) { return Math.sin(t * Math.PI * 4) * 3.2; }
+
+  /* --- desenho da silhueta -------------------------------- */
+
+  // Segmento afilado + junta arredondada: dá o "osso" do membro.
+  function bone(ctx, a, b, wa, wb) {
+    var dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+    var nx = -dy / L, ny = dx / L;
     ctx.beginPath();
-    ctx.moveTo(150, 262);
-    ctx.bezierCurveTo(139, 279, 147, 297, 176, 303);   // focinho
-    ctx.bezierCurveTo(215, 301, 261, 255, 292, 200);   // ganacha até a fauce
-    ctx.bezierCurveTo(320, 262, 366, 331, 414, 392);   // goela até o peito
-    ctx.bezierCurveTo(438, 412, 454, 430, 472, 448);   // peito / braço
-    ctx.bezierCurveTo(528, 470, 608, 478, 686, 470);   // ventre
-    ctx.bezierCurveTo(748, 464, 796, 446, 838, 404);   // flanco até a soldra
-    ctx.bezierCurveTo(866, 376, 884, 330, 886, 282);   // nádega
-    ctx.bezierCurveTo(884, 250, 866, 232, 840, 228);   // garupa
-    ctx.bezierCurveTo(772, 220, 690, 246, 596, 224);   // dorso até a cernelha
-    ctx.bezierCurveTo(510, 178, 392, 132, 300, 120);   // crista arqueada do pescoço
-    ctx.bezierCurveTo(282, 116, 264, 113, 250, 116);   // nuca
-    ctx.bezierCurveTo(224, 158, 186, 214, 150, 262);   // chanfro
+    ctx.moveTo(a[0] + nx * wa / 2, a[1] + ny * wa / 2);
+    ctx.lineTo(b[0] + nx * wb / 2, b[1] + ny * wb / 2);
+    ctx.lineTo(b[0] - nx * wb / 2, b[1] - ny * wb / 2);
+    ctx.lineTo(a[0] - nx * wa / 2, a[1] - ny * wa / 2);
     ctx.closePath();
     ctx.fill();
+    ctx.beginPath(); ctx.arc(b[0], b[1], wb / 2, 0, Math.PI * 2); ctx.fill();
+  }
 
-    // --- orelhas ---
-    [[[248, 118], [237, 72], [268, 108]], [[272, 115], [289, 74], [301, 111]]].forEach(function (ear) {
-      ctx.beginPath();
-      ctx.moveTo(ear[0][0], ear[0][1]);
-      ctx.lineTo(ear[1][0], ear[1][1]);
-      ctx.lineTo(ear[2][0], ear[2][1]);
-      ctx.closePath();
-      ctx.fill();
-    });
+  function drawLeg(ctx, leg) {
+    var p = leg.pts, w = leg.w;
+    for (var i = 0; i < 3; i++) bone(ctx, p[i], p[i + 1], w[i], w[i + 1]);
+    // casco pequeno, alinhado com a quartela para não se soltar do membro
+    var h = p[3], d = [p[3][0] - p[2][0], p[3][1] - p[2][1]];
+    var L = Math.hypot(d[0], d[1]) || 1, ang = Math.atan2(d[1], d[0]);
+    ctx.beginPath();
+    ctx.ellipse(h[0] - d[0] / L * 4, h[1] - d[1] / L * 4, 13, 9, ang, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
-    // --- membros: polilinhas espessas que afinam até o casco ---
-    function limb(pts, widths) {
-      for (var i = 0; i < pts.length - 1; i++) {
+  // Tronco, pescoço e cabeça — um só contorno fechado.
+  function drawTrunk(ctx) {
+    ctx.beginPath();
+    ctx.moveTo(96, 258);
+    ctx.bezierCurveTo(128, 200, 158, 150, 190, 104);   // chanfro
+    ctx.bezierCurveTo(252, 98, 330, 132, 392, 202);    // crista arqueada
+    ctx.bezierCurveTo(408, 196, 422, 176, 448, 184);   // CERNELHA: pico nítido
+    ctx.bezierCurveTo(496, 200, 530, 230, 578, 238);   // dorso curto e côncavo
+    ctx.bezierCurveTo(624, 244, 664, 224, 700, 206);   // lombo subindo
+    ctx.bezierCurveTo(728, 197, 750, 200, 768, 214);   // garupa longa
+    ctx.bezierCurveTo(778, 221, 792, 246, 796, 286);   // nádega
+    ctx.bezierCurveTo(800, 330, 788, 366, 762, 392);   // ísquio
+    ctx.bezierCurveTo(742, 400, 716, 396, 694, 392);   // vazio: recolhimento do flanco
+    ctx.bezierCurveTo(660, 404, 610, 416, 552, 422);   // barril, com curvatura
+    ctx.bezierCurveTo(488, 428, 412, 430, 358, 427);   // cilha: ponto mais fundo
+    ctx.bezierCurveTo(332, 420, 314, 400, 308, 374);   // peito
+    ctx.bezierCurveTo(300, 334, 284, 288, 262, 234);   // pescoço, borda inferior
+    ctx.bezierCurveTo(256, 220, 248, 208, 242, 198);   // garganta
+    ctx.bezierCurveTo(240, 224, 234, 248, 220, 266);   // ganacha
+    ctx.bezierCurveTo(194, 286, 158, 298, 126, 299);   // mandíbula
+    ctx.bezierCurveTo(106, 299, 92, 288, 90, 272);     // focinho, base
+    ctx.bezierCurveTo(89, 264, 92, 259, 96, 258);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Só tronco + orelhas: é a máscara da parte "corpo" na amostragem.
+  function drawTrunkOnly(ctx) { drawTrunk(ctx); drawEars(ctx); }
+
+  function drawEars(ctx) {
+    [[[180, 112], [166, 60], [198, 100]], [[204, 102], [214, 52], [228, 104]]]
+      .forEach(function (e) {
         ctx.beginPath();
-        ctx.lineWidth = widths[i];
-        ctx.moveTo(pts[i][0], pts[i][1]);
-        ctx.lineTo(pts[i + 1][0], pts[i + 1][1]);
-        ctx.stroke();
-      }
-      var hoof = pts[pts.length - 1];
-      ctx.beginPath();
-      ctx.ellipse(hoof[0], hoof[1], 15, 9, 0, 0, Math.PI * 2);
-      ctx.fill();
+        ctx.moveTo(e[0][0], e[0][1]);
+        ctx.lineTo(e[1][0], e[1][1]);
+        ctx.lineTo(e[2][0], e[2][1]);
+        ctx.closePath();
+        ctx.fill();
+      });
+  }
+
+  // Crina: um espessamento suave da crista, com a borda superior
+  // ondulada. Decisão deliberada — mechas destacadas na silhueta
+  // sempre leem como espinhos; o vento vive na ANIMAÇÃO das
+  // partículas (onda que corre da nuca à cernelha), não no contorno.
+  function drawMane(ctx, sway) {
+    var s = sway || 0;
+    ctx.beginPath();
+    ctx.moveTo(192, 98);
+    ctx.bezierCurveTo(214, 74 - s * 2, 254, 70 - s * 3, 286, 84 - s * 3);
+    ctx.bezierCurveTo(316, 106 - s * 2, 350, 142, 384, 192);
+    ctx.lineTo(392, 204);
+    ctx.bezierCurveTo(336, 144, 258, 108, 190, 112);                // volta por DENTRO da crista
+    ctx.closePath();
+    ctx.fill();
+    // topete curto entre as orelhas
+    ctx.beginPath();
+    ctx.moveTo(196, 98);
+    ctx.quadraticCurveTo(180, 114, 172, 142);
+    ctx.quadraticCurveTo(186, 120, 212, 106);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Cauda de inserção alta: nasce dentro da garupa, quase no nível
+  // dela, e desce cheia até afinar na ponta. Um contorno só — mechas
+  // desenhadas ao lado abrem frestas escuras e viram leque listrado.
+  var TAIL_SPINE = [[732, 226], [806, 222], [858, 262], [900, 332], [926, 414], [938, 494], [934, 554]];
+  var TAIL_W = [44, 52, 50, 42, 32, 21, 8];
+
+  function drawTail(ctx, sway) {
+    var s = sway || 0, n = TAIL_SPINE.length;
+    function at(i) {
+      var k = i / (n - 1), p = TAIL_SPINE[i];
+      return [p[0] + s * 12 * k * k, p[1] - s * 5 * k * k];
     }
-
-    limb([[452, 400], [410, 505], [372, 592], [350, 640]], [58, 32, 19]);              // anterior avançado
-    limb([[494, 412], [540, 515], [585, 592], [618, 634]], [52, 28, 17]);              // anterior recuado
-    limb([[812, 344], [760, 455], [800, 530], [790, 600], [782, 646]], [82, 46, 26, 17]); // posterior sob o corpo
-    limb([[852, 358], [872, 458], [884, 548], [890, 634]], [70, 38, 22]);              // posterior recuado
-
-    // --- cauda ---
-    var tail = [[874, 246], [930, 288], [958, 358], [972, 440], [978, 520]];
-    var tailW = [34, 25, 17, 10];
-    for (var t = 0; t < tail.length - 1; t++) {
-      ctx.beginPath();
-      ctx.lineWidth = tailW[t];
-      ctx.moveTo(tail[t][0], tail[t][1]);
-      ctx.lineTo(tail[t + 1][0], tail[t + 1][1]);
-      ctx.stroke();
+    var left = [], right = [];
+    for (var i = 0; i < n; i++) {
+      var a = at(i), b = at(Math.min(i + 1, n - 1)), c = at(Math.max(i - 1, 0));
+      var dx = b[0] - c[0], dy = b[1] - c[1], L = Math.hypot(dx, dy) || 1;
+      var nx = -dy / L * TAIL_W[i] / 2, ny = dx / L * TAIL_W[i] / 2;
+      left.push([a[0] + nx, a[1] + ny]);
+      right.unshift([a[0] - nx, a[1] - ny]);
     }
+    // contorno suavizado: quadráticas pelos pontos médios, para a cauda
+    // não ficar com cara de tábua recortada
+    var ring = left.concat(right);
+    ctx.beginPath();
+    var m0 = [(ring[0][0] + ring[ring.length - 1][0]) / 2, (ring[0][1] + ring[ring.length - 1][1]) / 2];
+    ctx.moveTo(m0[0], m0[1]);
+    for (var k = 0; k < ring.length; k++) {
+      var cur = ring[k], nxt = ring[(k + 1) % ring.length];
+      ctx.quadraticCurveTo(cur[0], cur[1], (cur[0] + nxt[0]) / 2, (cur[1] + nxt[1]) / 2);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
 
+  // Silhueta completa. `t` é a fase do ciclo de marcha (0..1).
+  function drawHorse(ctx, W, H, t) {
+    var phase = t || 0;
+    ctx.save();
+    ctx.scale(W / ANAT.W, H / ANAT.H);
+    ctx.fillStyle = '#fff';
+    var bob = bodyBob(phase);
+    // membros do lado oposto primeiro: ficam atrás na leitura
+    drawLeg(ctx, legJoints(1, phase));
+    drawLeg(ctx, legJoints(3, phase));
+    ctx.save();
+    ctx.translate(0, bob);
+    drawTail(ctx, Math.sin(phase * Math.PI * 2) * 1.2);
+    drawTrunk(ctx);
+    drawEars(ctx);
+    drawMane(ctx, Math.sin(phase * Math.PI * 2 + 0.7) * 1.2);
+    ctx.restore();
+    drawLeg(ctx, legJoints(0, phase));
+    drawLeg(ctx, legJoints(2, phase));
     ctx.restore();
   }
 
@@ -193,218 +372,721 @@
     return { inside: inside, edge: edge, W: W, H: H };
   }
 
-  var VERT = [
-    'attribute float aSize;',
-    'attribute float aSeed;',
-    'attribute vec3 aColor;',
-    'uniform float uTime;',
-    'uniform float uPixel;',
-    'uniform float uDisperse;',
-    'varying vec3 vColor;',
-    'varying float vAlpha;',
+  /* =======================================================
+     ( 02 ) ASA — geometria das asas de Pégaso
+     ======================================================= */
+  // A asa precisa subir MUITO acima da linha do dorso, senão o leque se
+  // confunde com a garupa e a cauda. Por isso ela vive numa tela própria,
+  // mais alta, deslocada por OY — o espaço de 700px do cavalo não cabe
+  // uma envergadura que se erga de verdade.
+  var WING = { W: 1100, H: 1120, OY: 430, ROOT: [432, 216] };
+
+  var WING_FEATHERS = [
+    [[470, 150], [498, 336], 30], [[520, 68], [598, 306], 30],
+    [[574, -12], [688, 258], 29], [[628, -92], [772, 196], 28],
+    [[682, -168], [842, 124], 26], [[732, -228], [890, 44], 24],
+    [[778, -278], [922, -44], 21]
+  ];
+
+  function drawWing(ctx) {
+    ctx.save();
+    ctx.translate(0, WING.OY);
+    ctx.fillStyle = '#fff';
+    // membrana: sobe da espádua, arqueia para trás e para cima
+    ctx.beginPath();
+    ctx.moveTo(430, 232);
+    ctx.bezierCurveTo(474, 120, 566, -30, 682, -150);
+    ctx.bezierCurveTo(736, -206, 790, -262, 812, -276);
+    ctx.bezierCurveTo(830, -286, 838, -268, 818, -232);
+    ctx.bezierCurveTo(776, -156, 706, -54, 628, 44);
+    ctx.bezierCurveTo(556, 134, 486, 214, 442, 254);
+    ctx.bezierCurveTo(418, 274, 412, 262, 430, 232);
+    ctx.closePath();
+    ctx.fill();
+    // rêmiges: lâminas afiladas que ultrapassam a membrana
+    WING_FEATHERS.forEach(function (f) {
+      var a = f[0], b = f[1], w = f[2];
+      var dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+      var nx = -dy / L, ny = dx / L;
+      ctx.beginPath();
+      ctx.moveTo(a[0] + nx * w / 2, a[1] + ny * w / 2);
+      ctx.quadraticCurveTo(a[0] + dx * 0.55 + nx * w * 0.42, a[1] + dy * 0.55 + ny * w * 0.42, b[0], b[1]);
+      ctx.quadraticCurveTo(a[0] + dx * 0.55 - nx * w * 0.42, a[1] + dy * 0.55 - ny * w * 0.42,
+                           a[0] - nx * w / 2, a[1] - ny * w / 2);
+      ctx.closePath();
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  /* =======================================================
+     ( 03 ) AMOSTRAGEM DE MÁSCARAS
+     ======================================================= */
+  function maskOf(draw, W, H) {
+    var cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    var ctx = cv.getContext('2d');
+    ctx.fillStyle = '#fff';
+    draw(ctx);
+    var d = ctx.getImageData(0, 0, W, H).data;
+    var inside = [], edge = [], e = 4;
+    function at(x, y) {
+      if (x < 0 || y < 0 || x >= W || y >= H) return 0;
+      return d[((y | 0) * W + (x | 0)) * 4 + 3];
+    }
+    for (var y = 0; y < H; y += 2) {
+      for (var x = 0; x < W; x += 2) {
+        if (at(x, y) < 128) continue;
+        var isEdge = at(x + e, y) < 128 || at(x - e, y) < 128 || at(x, y + e) < 128 || at(x, y - e) < 128;
+        (isEdge ? edge : inside).push(x, y);
+      }
+    }
+    return { inside: inside, edge: edge };
+  }
+
+  // Sorteia n pontos de uma máscara, com peso extra no contorno.
+  function pick(mask, n, edgeShare, out) {
+    var hasEdge = mask.edge.length > 1, hasIn = mask.inside.length > 1;
+    if (!hasEdge && !hasIn) return 0;
+    for (var i = 0; i < n; i++) {
+      var useEdge = hasEdge && (!hasIn || Math.random() < edgeShare);
+      var pool = useEdge ? mask.edge : mask.inside;
+      var k = (Math.random() * (pool.length / 2)) | 0;
+      out.push(pool[k * 2] + (Math.random() - 0.5) * 2.2,
+               pool[k * 2 + 1] + (Math.random() - 0.5) * 2.2,
+               useEdge ? 1 : 0);
+    }
+    return n;
+  }
+
+  /* =======================================================
+     ( 04 ) ALVOS DA METAMORFOSE — RAIO E CONSTELAÇÃO
+     ======================================================= */
+  function boltMask() {
+    return maskOf(function (ctx) {
+      ctx.beginPath();
+      ctx.moveTo(592, 24); ctx.lineTo(352, 356); ctx.lineTo(496, 356);
+      ctx.lineTo(400, 682); ctx.lineTo(762, 270); ctx.lineTo(592, 270);
+      ctx.lineTo(760, 24);
+      ctx.closePath(); ctx.fill();
+    }, ANAT.W, ANAT.H);
+  }
+
+  // Asterismo de Pégaso: o Grande Quadrado, o pescoço até Enif e as
+  // patas dianteiras. Coordenadas normalizadas de uma carta celeste.
+  var PEG_STARS = [
+    [0.30, 0.20, 2.4], [0.72, 0.16, 2.1], [0.33, 0.60, 2.5], [0.74, 0.60, 2.8],
+    [0.18, 0.72, 3.4], [0.10, 0.63, 3.5], [0.02, 0.82, 2.4],
+    [0.19, 0.05, 2.9], [0.10, 0.10, 3.5], [0.14, 0.16, 3.9], [0.02, 0.02, 3.8]
+  ];
+  var PEG_EDGES = [[0, 1], [1, 3], [3, 2], [2, 0], [2, 4], [4, 5], [5, 6], [0, 7], [7, 9], [9, 10], [7, 8]];
+
+  function starXY(i) {
+    return [120 + PEG_STARS[i][0] * 760, 60 + PEG_STARS[i][1] * 560];
+  }
+
+  function constellationPoint() {
+    var r = Math.random();
+    if (r < 0.18) {                                  // aglomerado nas estrelas
+      var s = (Math.random() * PEG_STARS.length) | 0;
+      var p = starXY(s), spread = 1.6 + PEG_STARS[s][2] * 0.7;
+      return [p[0] + (Math.random() - 0.5) * spread, p[1] + (Math.random() - 0.5) * spread, 1];
+    }
+    if (r < 0.86) {                                  // pó ao longo das linhas
+      var e = PEG_EDGES[(Math.random() * PEG_EDGES.length) | 0];
+      var a = starXY(e[0]), b = starXY(e[1]), t = Math.random();
+      return [a[0] + (b[0] - a[0]) * t + (Math.random() - 0.5) * 9,
+              a[1] + (b[1] - a[1]) * t + (Math.random() - 0.5) * 9, 0];
+    }
+    return [Math.random() * ANAT.W, Math.random() * ANAT.H, 0];   // céu de fundo
+  }
+
+  /* =======================================================
+     ( 05 ) NUVEM: CORPO AMOSTRADO + MEMBROS COM ESQUELETO
+     ======================================================= */
+  var PART = { BODY: 0, MANE: 1, TAIL: 2, LEG: 3 };
+  var SCALE = 0.118;
+
+  function toWorld(x, y) { return [(x - 500) * SCALE, -(y - 350) * SCALE]; }
+
+  // Sementes dos membros: cada partícula guarda em que membro, em que
+  // segmento e onde dentro dele ela vive. A pose recalcula só isso.
+  function legSeeds(total) {
+    var seeds = [], weights = [];
+    var i, j;
+    for (i = 0; i < 4; i++) {
+      var cfg = i < 2 ? ANAT.fore : ANAT.hind;
+      for (j = 0; j < 3; j++) weights.push(cfg.len[j] * (cfg.w[j] + cfg.w[j + 1]) / 2);
+    }
+    var sum = weights.reduce(function (a, b) { return a + b; }, 0);
+    for (var k = 0; k < total; k++) {
+      var r = Math.random() * sum, acc = 0, idx = 0;
+      for (var m = 0; m < weights.length; m++) { acc += weights[m]; if (r <= acc) { idx = m; break; } }
+      var leg = (idx / 3) | 0, seg = idx % 3;
+      var t = Math.random();
+      // metade das partículas encostada na borda: dá nitidez ao osso
+      var u = Math.random() < 0.5 ? (Math.random() < 0.5 ? -0.5 : 0.5) * (0.86 + Math.random() * 0.14)
+                                  : (Math.random() - 0.5) * 0.9;
+      seeds.push(leg, seg, t, u);
+    }
+    return seeds;
+  }
+
+  function buildClouds(budget) {
+    var maskBody = maskOf(function (c) { drawTrunkOnly(c); }, ANAT.W, ANAT.H);
+    var maskMane = maskOf(function (c) { drawMane(c, 0); }, ANAT.W, ANAT.H);
+    var maskTail = maskOf(function (c) { drawTail(c, 0); }, ANAT.W, ANAT.H);
+    var maskBolt = boltMask();
+
+    var n = budget;
+    var nBody = Math.round(n * 0.54), nMane = Math.round(n * 0.08);
+    var nTail = Math.round(n * 0.16), nLeg = n - nBody - nMane - nTail;
+
+    var raw = [];
+    pick(maskBody, nBody, 0.52, raw);
+    pick(maskMane, nMane, 0.55, raw);
+    pick(maskTail, nTail, 0.50, raw);
+
+    var count = n;
+    var position = new Float32Array(count * 3);
+    var aColor = new Float32Array(count * 3);
+    var aBolt = new Float32Array(count * 3);
+    var aStar = new Float32Array(count * 3);
+    var aSize = new Float32Array(count);
+    var aSeed = new Float32Array(count);
+    var aPart = new Float32Array(count);
+    var aRoot = new Float32Array(count);
+
+    var GOLD = [0.788, 0.635, 0.153], CHAMP = [0.902, 0.784, 0.478], BRONZE = [0.549, 0.416, 0.184];
+    var seeds = legSeeds(nLeg);
+
+    function paint(i, isEdge, star) {
+      var t = Math.random();
+      var c = isEdge
+        ? [lerp(GOLD[0], CHAMP[0], t), lerp(GOLD[1], CHAMP[1], t), lerp(GOLD[2], CHAMP[2], t)]
+        : [lerp(BRONZE[0], GOLD[0], 0.45 + t * 0.55), lerp(BRONZE[1], GOLD[1], 0.45 + t * 0.55),
+           lerp(BRONZE[2], GOLD[2], 0.45 + t * 0.55)];
+      if (star) c = CHAMP;
+      aColor[i * 3] = c[0]; aColor[i * 3 + 1] = c[1]; aColor[i * 3 + 2] = c[2];
+      aSize[i] = (isEdge ? 1.55 + Math.random() * 1.3 : 1.05 + Math.random() * 1.0) * (star ? 1.5 : 1);
+      aSeed[i] = Math.random();
+    }
+
+    var i, w, bp, cp;
+    var nSampled = nBody + nMane + nTail;
+    for (i = 0; i < nSampled; i++) {
+      var px = raw[i * 3], py = raw[i * 3 + 1], isEdge = raw[i * 3 + 2] === 1;
+      w = toWorld(px, py);
+      position[i * 3] = w[0];
+      position[i * 3 + 1] = w[1];
+      position[i * 3 + 2] = (Math.random() * 2 - 1) * (isEdge ? 3.4 : 8.4);
+      if (i < nBody) { aPart[i] = PART.BODY; aRoot[i] = 0; }
+      else if (i < nBody + nMane) {
+        aPart[i] = PART.MANE;
+        aRoot[i] = clamp((px - 190) / 210, 0, 1);
+      } else {
+        aPart[i] = PART.TAIL;
+        aRoot[i] = clamp((px - 740) / 200, 0, 1);
+      }
+      paint(i, isEdge, false);
+    }
+    for (i = nSampled; i < count; i++) {
+      var s = (i - nSampled) * 4;
+      aPart[i] = PART.LEG;
+      aRoot[i] = 0;
+      position[i * 3 + 2] = (Math.random() * 2 - 1) * 3.2;
+      paint(i, Math.abs(seeds[s + 3]) > 0.4, false);
+    }
+
+    // alvos: raio e constelação, para toda a nuvem
+    var boltRaw = [];
+    pick(maskBolt, count, 0.40, boltRaw);
+    for (i = 0; i < count; i++) {
+      bp = toWorld(boltRaw[i * 3], boltRaw[i * 3 + 1]);
+      aBolt[i * 3] = bp[0]; aBolt[i * 3 + 1] = bp[1];
+      aBolt[i * 3 + 2] = (Math.random() * 2 - 1) * 4;
+      var st = constellationPoint();
+      cp = toWorld(st[0], st[1]);
+      aStar[i * 3] = cp[0]; aStar[i * 3 + 1] = cp[1];
+      aStar[i * 3 + 2] = (Math.random() * 2 - 1) * 6;
+    }
+
+    return {
+      count: count, nSampled: nSampled, nLeg: nLeg, seeds: seeds,
+      position: position, aColor: aColor, aSize: aSize, aSeed: aSeed,
+      aPart: aPart, aRoot: aRoot, aBolt: aBolt, aStar: aStar
+    };
+  }
+
+  function buildWings(budget) {
+    var mask = maskOf(drawWing, WING.W, WING.H);
+    var raw = [];
+    pick(mask, budget, 0.5, raw);
+    var count = budget;
+    var position = new Float32Array(count * 3);   // alvo aberto
+    var aFold = new Float32Array(count * 3);      // dobrada, junto à espádua
+    var aColor = new Float32Array(count * 3);
+    var aSize = new Float32Array(count);
+    var aSeed = new Float32Array(count);
+    var aOrder = new Float32Array(count);
+    var CHAMP = [0.902, 0.784, 0.478], GOLD = [0.788, 0.635, 0.153];
+    var root = toWorld(WING.ROOT[0], WING.ROOT[1]);
+    for (var i = 0; i < count; i++) {
+      var px = raw[i * 3], py = raw[i * 3 + 1] - WING.OY, isEdge = raw[i * 3 + 2] === 1;
+      var far = i % 5 === 0;                       // asa oposta: menor e mais discreta
+      var w = toWorld(px, py);
+      var k = far ? 0.79 : 1;
+      position[i * 3] = root[0] + (w[0] - root[0]) * k + (far ? -8 : 0);
+      position[i * 3 + 1] = root[1] + (w[1] - root[1]) * k + (far ? -4 : 0);
+      position[i * 3 + 2] = far ? -9 - Math.random() * 4 : (Math.random() * 2 - 1) * 3.5;
+      aFold[i * 3] = root[0] + (Math.random() - 0.5) * 5;
+      aFold[i * 3 + 1] = root[1] + (Math.random() - 0.5) * 4;
+      aFold[i * 3 + 2] = (Math.random() * 2 - 1) * 3;
+      // ordem de revelação: da raiz para a ponta, pena a pena
+      aOrder[i] = clamp(Math.hypot(px - WING.ROOT[0], py - WING.ROOT[1]) / 620, 0, 1);
+      var t = Math.random();
+      var c = isEdge ? CHAMP : [lerp(GOLD[0], CHAMP[0], t), lerp(GOLD[1], CHAMP[1], t), lerp(GOLD[2], CHAMP[2], t)];
+      aColor[i * 3] = c[0]; aColor[i * 3 + 1] = c[1]; aColor[i * 3 + 2] = c[2];
+      aSize[i] = (isEdge ? 1.4 + Math.random() * 1.1 : 0.9 + Math.random() * 0.9) * (far ? 0.8 : 1);
+      aSeed[i] = Math.random();
+    }
+    return { count: count, position: position, aFold: aFold, aColor: aColor,
+             aSize: aSize, aSeed: aSeed, aOrder: aOrder };
+  }
+
+  /* =======================================================
+     ( 06 ) SHADERS
+     ======================================================= */
+  var HORSE_VERT = [
+    'attribute float aSize; attribute float aSeed; attribute float aPart; attribute float aRoot;',
+    'attribute vec3 aColor; attribute vec3 aBolt; attribute vec3 aStar;',
+    'uniform float uTime; uniform float uPixel; uniform float uScale; uniform float uBob;',
+    'uniform float uSway; uniform float uBolt; uniform float uStar; uniform float uDim; uniform float uPulse;',
+    'varying vec3 vColor; varying float vAlpha;',
     'void main(){',
     '  vec3 p = position;',
-    '  float ph = aSeed * 6.2831;',
-    '  p.y += sin(uTime * 0.85 + ph) * 1.15;',
-    '  p.x += sin(uTime * 0.55 + p.y * 0.035 + ph) * 0.9;',
-    '  p += normalize(p + vec3(0.001)) * uDisperse * (12.0 + aSeed * 26.0);',
+    '  float mane = step(0.5, aPart) * step(aPart, 1.5);',
+    '  float tail = step(1.5, aPart) * step(aPart, 2.5);',
+    '  float leg  = step(2.5, aPart);',
+    '  float trunk = 1.0 - mane - tail - leg;',
+    '  p.y += uBob * (trunk + mane + tail);',
+    '  float ph = uTime * 2.0 - aRoot * 3.6;',
+    '  float k = aRoot * aRoot * (0.55 + aSeed * 1.5);',
+    '  p.x += (mane * 1.6 + tail * 3.2) * k * sin(ph) * uSway;',
+    '  p.y += (mane * 0.8 + tail * 1.7) * k * cos(ph) * uSway;',
+    '  p += normalize(p + vec3(0.001)) * uPulse * 0.9 * aSeed;',
+    '  p = mix(p, aBolt, uBolt);',
+    '  p = mix(p, aStar, uStar);',
     '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
-    '  gl_PointSize = aSize * uPixel * (170.0 / max(-mv.z, 1.0));',
+    '  gl_PointSize = aSize * uPixel * uScale * (170.0 / max(-mv.z, 1.0)) * (1.0 + uPulse * 0.6);',
     '  gl_Position = projectionMatrix * mv;',
-    '  vColor = aColor;',
-    '  vAlpha = (0.46 + 0.54 * aSeed) * (1.0 - uDisperse * 0.55);',
+    '  vColor = mix(aColor, vec3(0.902, 0.784, 0.478), uStar * 0.35 + uBolt * 0.30);',
+    '  vAlpha = (0.55 + 0.45 * aSeed) * uDim * (1.0 + uPulse * 0.45);',
     '}'
   ].join('\n');
 
-  var FRAG = [
-    'varying vec3 vColor;',
-    'varying float vAlpha;',
+  var WING_VERT = [
+    'attribute float aSize; attribute float aSeed; attribute float aOrder;',
+    'attribute vec3 aColor; attribute vec3 aFold;',
+    'uniform float uTime; uniform float uPixel; uniform float uScale; uniform float uBob;',
+    'uniform float uWing; uniform float uBeat; uniform float uDim; uniform float uBolt; uniform vec2 uRoot;',
+    'varying vec3 vColor; varying float vAlpha;',
+    'void main(){',
+    '  float t = clamp((uWing - aOrder * 0.55) / 0.45, 0.0, 1.0);',
+    '  t = t * t * (3.0 - 2.0 * t);',
+    '  vec3 p = mix(aFold, position, t);',
+    '  float a = uBeat * 0.62 * (0.3 + aOrder);',
+    '  vec2 r = p.xy - uRoot;',
+    '  p.xy = uRoot + vec2(r.x * cos(a) - r.y * sin(a), r.x * sin(a) + r.y * cos(a));',
+    '  p.y += uBob + sin(uTime * 1.3 + aOrder * 3.0) * aOrder * 1.5;',
+    '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
+    '  gl_PointSize = aSize * uPixel * uScale * (170.0 / max(-mv.z, 1.0));',
+    '  gl_Position = projectionMatrix * mv;',
+    '  vColor = aColor;',
+    '  vAlpha = (0.40 + 0.60 * aSeed) * uDim * t * (1.0 - uBolt);',
+    '}'
+  ].join('\n');
+
+  var DUST_VERT = [
+    'attribute float aSize; attribute float aLife;',
+    'uniform float uPixel; uniform float uScale; uniform float uDim;',
+    'varying vec3 vColor; varying float vAlpha;',
+    'void main(){',
+    '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+    '  gl_PointSize = aSize * uPixel * uScale * (170.0 / max(-mv.z, 1.0)) * (0.4 + aLife * 0.6);',
+    '  gl_Position = projectionMatrix * mv;',
+    '  vColor = vec3(0.788, 0.635, 0.153);',
+    '  vAlpha = aLife * aLife * 0.55 * uDim;',
+    '}'
+  ].join('\n');
+
+  var POINT_FRAG = [
+    'varying vec3 vColor; varying float vAlpha;',
     'void main(){',
     '  vec2 uv = gl_PointCoord - 0.5;',
     '  float d = dot(uv, uv);',
     '  if (d > 0.25) discard;',
-    '  float a = smoothstep(0.25, 0.02, d) * vAlpha;',
-    '  gl_FragColor = vec4(vColor, a);',
+    '  gl_FragColor = vec4(vColor, smoothstep(0.25, 0.02, d) * vAlpha);',
     '}'
   ].join('\n');
 
-  function horseParticles() {
-    var canvas = $('#horseCanvas');
-    if (!canvas) return;
-    var stage = canvas.parentElement;
+  /* =======================================================
+     ( 07 ) PÉGASO — O OBJETO QUE ATRAVESSA A PÁGINA
+     ======================================================= */
+  function pegasus() {
+    var canvas = $('#horseCanvas'), stage = $('#stage'), glow = $('#stageGlow');
+    if (!canvas || !stage) return;
+    if (REDUCED) { showEmblem(); return; }
 
     var gl = null;
     try {
       gl = canvas.getContext('webgl', { antialias: true, alpha: true }) ||
            canvas.getContext('experimental-webgl');
     } catch (err) { gl = null; }
+    if (!gl || typeof window.THREE === 'undefined') { fallbackFlat(canvas, stage); return; }
 
-    if (!gl || typeof window.THREE === 'undefined') { fallbackSphere(canvas); return; }
-
-    var mobile = window.matchMedia('(max-width: 680px)').matches;
-    var TOTAL = mobile ? 7500 : 15000;
-    var EDGE_SHARE = 0.54;
-
-    var sil = sampleSilhouette();
-    if (!sil.inside.length) { fallbackSphere(canvas); return; }
-
-    var positions = new Float32Array(TOTAL * 3);
-    var colors = new Float32Array(TOTAL * 3);
-    var sizes = new Float32Array(TOTAL);
-    var seeds = new Float32Array(TOTAL);
-
-    var GOLD = [0.788, 0.635, 0.153];      // #C9A227
-    var CHAMP = [0.902, 0.784, 0.478];     // #E6C87A
-    var BRONZE = [0.549, 0.416, 0.184];    // #8C6A2F
-    var SCALE = 0.118;
-
-    for (var i = 0; i < TOTAL; i++) {
-      var useEdge = sil.edge.length > 0 && Math.random() < EDGE_SHARE;
-      var pool = useEdge ? sil.edge : sil.inside;
-      var k = (Math.random() * (pool.length / 2)) | 0;
-      var px = pool[k * 2] + (Math.random() - 0.5) * 2.2;
-      var py = pool[k * 2 + 1] + (Math.random() - 0.5) * 2.2;
-
-      var depth = useEdge ? 3.4 : 8.4;
-      positions[i * 3] = (px - 500) * SCALE;
-      positions[i * 3 + 1] = -(py - 350) * SCALE;
-      positions[i * 3 + 2] = (Math.random() * 2 - 1) * depth;
-
-      var t = Math.random();
-      var c = useEdge
-        ? [lerp(GOLD[0], CHAMP[0], t), lerp(GOLD[1], CHAMP[1], t), lerp(GOLD[2], CHAMP[2], t)]
-        : [lerp(BRONZE[0], GOLD[0], 0.45 + t * 0.55), lerp(BRONZE[1], GOLD[1], 0.45 + t * 0.55), lerp(BRONZE[2], GOLD[2], 0.45 + t * 0.55)];
-      colors[i * 3] = c[0]; colors[i * 3 + 1] = c[1]; colors[i * 3 + 2] = c[2];
-
-      sizes[i] = useEdge ? 1.45 + Math.random() * 1.25 : 0.95 + Math.random() * 1.0;
-      seeds[i] = Math.random();
-    }
+    var narrow = window.matchMedia('(max-width: 900px)').matches;
+    // Orçamento medido: 11k + 3k asas roda a 60fps em GPU real e mantém
+    // o contorno legível; abaixo de 900px a metade basta para a leitura.
+    var cloud = buildClouds(narrow ? 7500 : 16000);
+    var wings = buildWings(narrow ? 1800 : 3400);
 
     var renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
     renderer.setClearColor(0x000000, 0);
-    var DPR = Math.min(window.devicePixelRatio || 1, 1.75);
+    var DPR = Math.min(window.devicePixelRatio || 1, 1.5);
     renderer.setPixelRatio(DPR);
 
     var scene = new THREE.Scene();
-    var camera = new THREE.PerspectiveCamera(40, 1, 1, 600);
-    camera.position.set(0, 0, 155);
+    var camera = new THREE.PerspectiveCamera(40, 1, 1, 900);
+    camera.position.set(0, 0, 150);
+
+    var outer = new THREE.Group(), inner = new THREE.Group();
+    outer.add(inner); scene.add(outer);
+
+    function attr(a, n) { return new THREE.BufferAttribute(a, n); }
 
     var geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
-    geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
-    geo.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1));
+    geo.setAttribute('position', attr(cloud.position, 3));
+    geo.setAttribute('aColor', attr(cloud.aColor, 3));
+    geo.setAttribute('aBolt', attr(cloud.aBolt, 3));
+    geo.setAttribute('aStar', attr(cloud.aStar, 3));
+    geo.setAttribute('aSize', attr(cloud.aSize, 1));
+    geo.setAttribute('aSeed', attr(cloud.aSeed, 1));
+    geo.setAttribute('aPart', attr(cloud.aPart, 1));
+    geo.setAttribute('aRoot', attr(cloud.aRoot, 1));
+    geo.attributes.position.setUsage(THREE.DynamicDrawUsage);
 
-    var mat = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-        uPixel: { value: DPR },
-        uDisperse: { value: 0 }
-      },
-      vertexShader: VERT,
-      fragmentShader: FRAG,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending
+    var U = {
+      uTime: { value: 0 }, uPixel: { value: DPR }, uScale: { value: 1 }, uBob: { value: 0 },
+      uSway: { value: 1 }, uBolt: { value: 0 }, uStar: { value: 0 }, uDim: { value: 1 }, uPulse: { value: 0 }
+    };
+    var horsePts = new THREE.Points(geo, new THREE.ShaderMaterial({
+      uniforms: U, vertexShader: HORSE_VERT, fragmentShader: POINT_FRAG,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+    }));
+    inner.add(horsePts);
+
+    var wgeo = new THREE.BufferGeometry();
+    wgeo.setAttribute('position', attr(wings.position, 3));
+    wgeo.setAttribute('aFold', attr(wings.aFold, 3));
+    wgeo.setAttribute('aColor', attr(wings.aColor, 3));
+    wgeo.setAttribute('aSize', attr(wings.aSize, 1));
+    wgeo.setAttribute('aSeed', attr(wings.aSeed, 1));
+    wgeo.setAttribute('aOrder', attr(wings.aOrder, 1));
+    var rootW = toWorld(WING.ROOT[0], WING.ROOT[1]);
+    var WU = {
+      uTime: U.uTime, uPixel: U.uPixel, uScale: U.uScale, uBob: U.uBob,
+      uWing: { value: 0 }, uBeat: { value: 0 }, uDim: U.uDim, uBolt: U.uBolt,
+      uRoot: { value: new THREE.Vector2(rootW[0], rootW[1]) }
+    };
+    var wingPts = new THREE.Points(wgeo, new THREE.ShaderMaterial({
+      uniforms: WU, vertexShader: WING_VERT, fragmentShader: POINT_FRAG,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+    }));
+    inner.add(wingPts);
+
+    // poeira dourada sob os cascos
+    var DUST = narrow ? 120 : 240;
+    var dPos = new Float32Array(DUST * 3), dLife = new Float32Array(DUST);
+    var dSize = new Float32Array(DUST), dVel = new Float32Array(DUST * 2), dCur = 0;
+    for (var q = 0; q < DUST; q++) { dSize[q] = 0.7 + Math.random() * 1.5; dPos[q * 3 + 2] = -2; }
+    var dgeo = new THREE.BufferGeometry();
+    dgeo.setAttribute('position', attr(dPos, 3));
+    dgeo.setAttribute('aLife', attr(dLife, 1));
+    dgeo.setAttribute('aSize', attr(dSize, 1));
+    dgeo.attributes.position.setUsage(THREE.DynamicDrawUsage);
+    dgeo.attributes.aLife.setUsage(THREE.DynamicDrawUsage);
+    var dustPts = new THREE.Points(dgeo, new THREE.ShaderMaterial({
+      uniforms: { uPixel: U.uPixel, uScale: U.uScale, uDim: U.uDim },
+      vertexShader: DUST_VERT, fragmentShader: POINT_FRAG,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+    }));
+    inner.add(dustPts);
+
+    // linhas do asterismo, reveladas junto com a constelação
+    var lpos = new Float32Array(PEG_EDGES.length * 6);
+    PEG_EDGES.forEach(function (e, i) {
+      var a = toWorld(starXY(e[0])[0], starXY(e[0])[1]);
+      var b = toWorld(starXY(e[1])[0], starXY(e[1])[1]);
+      lpos[i * 6] = a[0]; lpos[i * 6 + 1] = a[1]; lpos[i * 6 + 2] = 0;
+      lpos[i * 6 + 3] = b[0]; lpos[i * 6 + 4] = b[1]; lpos[i * 6 + 5] = 0;
     });
+    var lgeo = new THREE.BufferGeometry();
+    lgeo.setAttribute('position', attr(lpos, 3));
+    var lmat = new THREE.LineBasicMaterial({ color: 0xE6C87A, transparent: true, opacity: 0 });
+    inner.add(new THREE.LineSegments(lgeo, lmat));
 
-    var points = new THREE.Points(geo, mat);
-    scene.add(points);
+    /* --- estado dirigido pela rolagem ------------------- */
+    var S = { x: 0.30, y: 0.03, scale: 1, gait: 1, sway: 1, wing: 0, dim: 1, pulse: 0, rear: 0, beat: 0, bolt: 0, star: 0 };
+    var T = {}; for (var kk in S) T[kk] = S[kk];
+    if (window.PEGASO) { window.PEGASO.S = S; window.PEGASO.T = T; window.PEGASO.counts = { cloud: cloud.count, legs: cloud.nLeg, wings: wings.count }; }
 
+    // Cada cena entra quando o topo do seu elemento cruza uma linha da
+    // viewport, e vale a ÚLTIMA cena cruzada. É monótono na rolagem e
+    // determinístico — com um gatilho por seção, um salto de rolagem
+    // dispara vários onEnter e o último a chegar vencia por acaso
+    // (era isso que apagava as asas no Olimpo).
+    var SCENES = [
+      ['#inicio', 0.95, { x: 0.30, y: 0.03, scale: 1.00, gait: 1.0, wing: 0, dim: 1.00, pulse: 0 }],
+      ['.gait', 0.68, { x: 0.02, y: 0.02, scale: 1.16, gait: 1.0, wing: 0, dim: 0.30, pulse: 1 }],
+      ['#olimpo', 0.88, { x: 0.55, y: 0.28, scale: 0.80, gait: 0.5, wing: 1, dim: 0.95, pulse: 0 }],
+      ['.gallery', 0.60, { x: 0.36, y: 0.06, scale: 0.56, gait: 0.4, wing: 1, dim: 0.22, pulse: 0 }],
+      ['#comparativo', 0.68, { x: 0.37, y: 0.06, scale: 0.54, gait: 0.4, wing: 1, dim: 0.20, pulse: 0 }],
+      ['#planos', 0.68, { x: -0.38, y: 0.06, scale: 0.52, gait: 0.4, wing: 1, dim: 0.17, pulse: 0 }],
+      ['.creds', 0.68, { x: 0.38, y: 0.04, scale: 0.52, gait: 0.4, wing: 1, dim: 0.17, pulse: 0 }],
+      ['.says', 0.68, { x: -0.37, y: 0.04, scale: 0.54, gait: 0.4, wing: 1, dim: 0.17, pulse: 0 }],
+      ['#faq', 0.68, { x: 0.37, y: 0.02, scale: 0.58, gait: 0.4, wing: 1, dim: 0.19, pulse: 0 }],
+      ['#contato', 0.80, { x: 0.20, y: 0.04, scale: 1.02, gait: 0.2, wing: 1, dim: 0.72, pulse: 0 }]
+    ];
+    var sceneEls = [];
+    SCENES.forEach(function (sc) { var el = $(sc[0]); if (el) sceneEls.push({ el: el, line: sc[1], v: sc[2] }); });
+    var lastScene = -1;
+    function pickScene() {
+      var vp = window.innerHeight, best = 0;
+      for (var i = 0; i < sceneEls.length; i++) {
+        if (sceneEls[i].el.getBoundingClientRect().top <= vp * sceneEls[i].line) best = i;
+      }
+      if (best !== lastScene) { lastScene = best; assign(sceneEls[best].v); }
+    }
+
+    if (hasGSAP) {
+      // Final: a seção é fixada para a metamorfose ter espaço de cena —
+      // empinar, uma batida de asa, o raio e a constelação não cabem nos
+      // ~600px de rolagem que a seção teria solta.
+      var end = $('#contato');
+      if (end) {
+        var conf = {
+          scrub: 0.7,
+          onUpdate: function (self) {
+            var p = self.progress;
+            var st = clamp((p - 0.70) / 0.22, 0, 1);
+            T.rear = clamp(p / 0.18, 0, 1) * (1 - clamp((p - 0.34) / 0.14, 0, 1));
+            T.beat = Math.sin(clamp((p - 0.16) / 0.20, 0, 1) * Math.PI);
+            T.bolt = clamp((p - 0.44) / 0.16, 0, 1);   // fecha em 0,60 e segura
+            T.star = st;
+            T.gait = 0.20 * (1 - clamp(p / 0.18, 0, 1));
+            T.x = 0.20 * (1 - clamp((p - 0.38) / 0.22, 0, 1));
+            T.y = 0.04 - st * 0.03;
+            // a constelação cresce e emoldura o manifesto
+            T.scale = 1.02 + st * 1.30;
+            T.dim = 0.72 + 0.28 * clamp((p - 0.58) / 0.22, 0, 1);
+          }
+        };
+        ScrollTrigger.create(Object.assign({ trigger: end, start: 'top top', end: 'bottom bottom' }, conf));
+      }
+    }
+    function assign(o) { for (var k in o) T[k] = o[k]; }
+
+    /* --- enquadramento ---------------------------------- */
+    var vw = 0, vh = 0, baseScale = 1, dimFactor = 1, renderScale = 1;
     function resize() {
       var w = stage.clientWidth || window.innerWidth;
       var h = stage.clientHeight || window.innerHeight;
-      renderer.setSize(w, h, false);
+      // O buffer pode render a menos que o tamanho em CSS: o CSS reamplia.
+      // Como as partículas são manchas suaves, a perda é imperceptível e o
+      // custo de preenchimento cai com o quadrado da escala.
+      renderer.setSize(w * renderScale, h * renderScale, false);
       camera.aspect = w / h;
-      // Enquadra o cavalo inteiro: ajusta pela largura E pela altura.
-      var hw = 1000 * SCALE, hh = 700 * SCALE;
-      var needH = Math.max(hh * 1.18, (hw * 1.06) / camera.aspect);
-      var z = needH / (2 * Math.tan((40 * Math.PI / 180) / 2));
-      camera.position.z = clamp(z, 130, 430);
       camera.updateProjectionMatrix();
+      vh = 2 * Math.tan(20 * Math.PI / 180) * camera.position.z;
+      vw = vh * camera.aspect;
+      var span = ANAT.W * SCALE;                       // largura do cavalo em unidades
+      var want = camera.aspect < 0.9 ? 0.86 : 0.46;    // fração da largura da tela
+      baseScale = Math.min(vw * want / span, vh * 0.62 / (ANAT.H * SCALE));
+      // Em tela estreita o Pégaso ocupa quase toda a largura e fica ATRÁS
+      // do texto: precisa recuar bastante para não disputar a leitura.
+      dimFactor = w < 900 ? 0.42 : 1;
     }
     resize();
     window.addEventListener('resize', resize);
 
-    var mouse = { x: 0, y: 0 }, cur = { x: 0, y: 0 };
-    if (!REDUCED) {
-      window.addEventListener('pointermove', function (e) {
-        mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
-        mouse.y = (e.clientY / window.innerHeight - 0.5) * 2;
-      }, { passive: true });
-    }
-
     var visible = true;
-    if ('IntersectionObserver' in window) {
-      new IntersectionObserver(function (en) { visible = en[0].isIntersecting; },
-        { rootMargin: '160px' }).observe(canvas);
+    document.addEventListener('visibilitychange', function () { visible = !document.hidden; });
+
+    /* --- membros por esqueleto -------------------------- */
+    var posArr = geo.attributes.position.array, base3 = cloud.nSampled * 3;
+    function updateLegs(phase, bob) {
+      var ch = [legJoints(0, phase, bob), legJoints(1, phase, bob),
+                legJoints(2, phase, bob), legJoints(3, phase, bob)];
+      for (var i = 0; i < cloud.nLeg; i++) {
+        var s = i * 4, c = ch[cloud.seeds[s]], seg = cloud.seeds[s + 1];
+        var t = cloud.seeds[s + 2], u = cloud.seeds[s + 3];
+        var a = c.pts[seg], b = c.pts[seg + 1];
+        var dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+        var wd = (c.w[seg] + (c.w[seg + 1] - c.w[seg]) * t) * u;
+        var j = base3 + i * 3;
+        posArr[j] = ((a[0] + dx * t) - dy / L * wd - 500) * SCALE;
+        posArr[j + 1] = -((a[1] + dy * t) + dx / L * wd - 350) * SCALE;
+      }
+      geo.attributes.position.updateRange.offset = base3;
+      geo.attributes.position.updateRange.count = cloud.nLeg * 3;
+      geo.attributes.position.needsUpdate = true;
+      return ch;
     }
 
-    if (REDUCED) { renderer.render(scene, camera); return; }
+    /* --- poeira ----------------------------------------- */
+    var FOOTFALL = [1 - LEG_PHASE[0], 1 - LEG_PHASE[1], 1 - LEG_PHASE[2], 1 - LEG_PHASE[3]];
+    function spawnDust(hoof) {
+      for (var n = 0; n < 9; n++) {
+        var i = dCur = (dCur + 1) % DUST;
+        dPos[i * 3] = (hoof[0] - 500) * SCALE + (Math.random() - 0.5) * 1.5;
+        dPos[i * 3 + 1] = -(hoof[1] - 350) * SCALE;
+        dVel[i * 2] = (0.6 + Math.random() * 1.6) * 2.2;
+        dVel[i * 2 + 1] = (0.4 + Math.random()) * 1.9;
+        dLife[i] = 1;
+      }
+    }
+    function updateDust(dt) {
+      for (var i = 0; i < DUST; i++) {
+        if (dLife[i] <= 0) continue;
+        dLife[i] -= dt * 1.15;
+        dPos[i * 3] += dVel[i * 2] * dt;
+        dPos[i * 3 + 1] += dVel[i * 2 + 1] * dt;
+        dVel[i * 2 + 1] -= dt * 1.6;
+        dVel[i * 2] *= 0.985;
+        if (dLife[i] < 0) dLife[i] = 0;
+      }
+      dgeo.attributes.position.needsUpdate = true;
+      dgeo.attributes.aLife.needsUpdate = true;
+    }
 
-    var t0 = performance.now();
-    (function loop(now) {
-      requestAnimationFrame(loop);
-      if (!visible) return;
+    /* --- laço ------------------------------------------- */
+    var t0 = performance.now(), prev = t0, phase = 0, prevPhase = 0, tickN = 0;
+    var fpsAcc = 0, fpsN = 0;
+    var SPEED = 0.55;   // passadas por segundo: solene, não frenético
+    var pivot = toWorld(760, ANAT.GROUND);
+
+    (function frame(now) {
+      requestAnimationFrame(frame);
+      if (!visible) { prev = now; return; }
+      var dt = Math.min((now - prev) / 1000, 0.05); prev = now;
+      tickN = (tickN + 1) % 3;
+      if (tickN === 0) pickScene();
+      var e = 1 - Math.pow(0.0015, dt);
+      for (var k in S) S[k] += (T[k] - S[k]) * e;
+
+      prevPhase = phase;
+      phase = (phase + dt * SPEED * S.gait) % 1;
+
+      var bob = bodyBob(phase) * S.gait;
+      var chains = updateLegs(phase, bob);
+
+      // batida no ritmo dos quatro tempos da marcha
+      var beat = 0;
+      for (var f = 0; f < 4; f++) {
+        var d = Math.abs(((phase - FOOTFALL[f]) % 1 + 1.5) % 1 - 0.5);
+        beat = Math.max(beat, Math.exp(-d * d * 900));
+        if (S.gait > 0.25 && prevPhase < FOOTFALL[f] && phase >= FOOTFALL[f]) {
+          spawnDust(chains[f].pts[3]);
+        }
+      }
+      if (phase < prevPhase) prevPhase = phase;   // volta do ciclo
+      updateDust(dt);
+
+      // Guarda de quadro: se a placa não sustenta 60fps, o buffer encolhe
+      // até voltar; em GPU capaz ele volta sozinho para a resolução cheia.
+      fpsAcc += dt; fpsN++;
+      if (fpsAcc >= 1) {
+        var fps = fpsN / fpsAcc;
+        if (fps < 50 && renderScale > 0.6) { renderScale = Math.max(0.6, renderScale - 0.12); resize(); }
+        else if (fps > 57 && renderScale < 1) { renderScale = Math.min(1, renderScale + 0.06); resize(); }
+        fpsAcc = 0; fpsN = 0;
+      }
+
       var t = (now - t0) / 1000;
-      mat.uniforms.uTime.value = t;
-      cur.x = lerp(cur.x, mouse.x, 0.045);
-      cur.y = lerp(cur.y, mouse.y, 0.045);
-      points.rotation.y = Math.sin(t * 0.16) * 0.19 + cur.x * 0.13;
-      points.rotation.x = Math.sin(t * 0.11) * 0.045 - cur.y * 0.06;
+      U.uTime.value = t;
+      U.uBob.value = bob * SCALE * -1;
+      U.uSway.value = 0.35 + S.gait * 0.8;
+      U.uDim.value = S.dim * dimFactor;
+      U.uPulse.value = S.pulse * beat * 0.5;
+      U.uBolt.value = S.bolt;
+      U.uStar.value = S.star;
+      // O ponto acompanha só parte da escala do grupo: assim o Pégaso
+      // recuado continua legível e a constelação não vira bolotas.
+      U.uScale.value = baseScale * (0.55 + 0.45 * S.scale) * (1 - 0.22 * S.wing);
+      WU.uWing.value = S.wing;
+      WU.uBeat.value = S.beat;
+      lmat.opacity = S.star * 0.5;
+
+      // Asa aberta muda a envergadura E o centro visual do conjunto: o
+      // bloco alado tem o centro ~166 unidades de tela acima do centro do
+      // cavalo. Recuar a escala e recentrar por cálculo evita cortar a
+      // ponta da asa em qualquer viewport.
+      var sc = baseScale * S.scale * (1 - 0.30 * S.wing);
+      var xf = camera.aspect < 1.1 ? 0.45 : 1;
+      outer.scale.setScalar(sc);
+      outer.position.set(S.x * xf * vw * 0.5,
+                         S.y * vh * 0.5 - 166 * SCALE * sc * S.wing, 0);
+      var rot = -S.rear * 0.44;
+      inner.rotation.z = rot;
+      var c = Math.cos(rot), sn = Math.sin(rot);
+      inner.position.set(pivot[0] - (pivot[0] * c - pivot[1] * sn),
+                         pivot[1] - (pivot[0] * sn + pivot[1] * c), 0);
+      if (glow) glow.style.opacity = (0.25 + S.bolt * 0.75 * (1 - S.star)).toFixed(3);
+
       renderer.render(scene, camera);
     })(t0);
   }
 
-  // Sem WebGL: esfera de partículas em Canvas 2D.
-  function fallbackSphere(canvas) {
+  /* =======================================================
+     ( 08 ) ALTERNATIVAS — EMBLEMA E CANVAS 2D
+     ======================================================= */
+  function showEmblem() {
+    var em = $('#emblem'), st = $('#stage');
+    if (st) st.setAttribute('hidden', '');
+    if (em) em.removeAttribute('hidden');
+  }
+
+  // Sem WebGL: a mesma silhueta corrigida, estática, em pontos dourados.
+  function fallbackFlat(canvas, stage) {
     var ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    var stage = canvas.parentElement;
-    var DPR = Math.min(window.devicePixelRatio || 1, 2);
-    var N = window.matchMedia('(max-width: 680px)').matches ? 700 : 1400;
-    var pts = [];
-    for (var i = 0; i < N; i++) {
-      var u = Math.random() * 2 - 1, a = Math.random() * Math.PI * 2, r = Math.sqrt(1 - u * u);
-      pts.push({ x: r * Math.cos(a), y: u, z: r * Math.sin(a), s: 0.5 + Math.random() * 1.3, c: Math.random() });
-    }
-    var w = 0, h = 0;
-    function resize() {
-      w = stage.clientWidth || window.innerWidth;
-      h = stage.clientHeight || window.innerHeight;
+    if (!ctx) { showEmblem(); return; }
+    var mask = maskOf(function (c) { drawHorse(c, ANAT.W, ANAT.H, 0); }, ANAT.W, ANAT.H);
+    var raw = [];
+    pick(mask, window.matchMedia('(max-width: 900px)').matches ? 2200 : 4200, 0.55, raw);
+    var DPR = Math.min(window.devicePixelRatio || 1, 2), w = 0, h = 0;
+    function draw() {
+      w = stage.clientWidth; h = stage.clientHeight;
       canvas.width = w * DPR; canvas.height = h * DPR;
       canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    }
-    resize();
-    window.addEventListener('resize', resize);
-
-    function frame(rot) {
       ctx.clearRect(0, 0, w, h);
-      var R = Math.min(w, h) * 0.34, cx = w / 2, cy = h / 2;
-      var cos = Math.cos(rot), sin = Math.sin(rot);
-      for (var i = 0; i < pts.length; i++) {
-        var p = pts[i];
-        var x = p.x * cos - p.z * sin, z = p.x * sin + p.z * cos;
-        var k = 1.9 / (1.9 + z);
-        ctx.globalAlpha = clamp(0.18 + k * 0.55, 0, 1);
-        ctx.fillStyle = p.c > 0.5 ? '#E6C87A' : '#C9A227';
-        ctx.beginPath();
-        ctx.arc(cx + x * R * k, cy + p.y * R * k, p.s * k, 0, Math.PI * 2);
-        ctx.fill();
+      var k = Math.min(w * 0.46 / ANAT.W, h * 0.62 / ANAT.H);
+      if (w < 900) k = Math.min(w * 0.92 / ANAT.W, h * 0.5 / ANAT.H);
+      var ox = w * (w < 900 ? 0.5 : 0.72) - ANAT.W * k / 2, oy = h * 0.5 - ANAT.H * k / 2;
+      for (var i = 0; i < raw.length; i += 3) {
+        ctx.globalAlpha = 0.25 + Math.random() * 0.5;
+        ctx.fillStyle = raw[i + 2] === 1 ? '#E6C87A' : '#C9A227';
+        ctx.fillRect(ox + raw[i] * k, oy + raw[i + 1] * k, 1.6, 1.6);
       }
       ctx.globalAlpha = 1;
     }
-    if (REDUCED) { frame(0.6); return; }
-    var t0 = performance.now();
-    (function loop(now) {
-      requestAnimationFrame(loop);
-      frame((now - t0) / 6000);
-    })(t0);
+    draw();
+    window.addEventListener('resize', draw);
   }
 
   /* =======================================================
-     ( 02 ) CENA DA MARCHA — PIN + SCRUB
+     ( 09 ) CENA DA MARCHA — PIN + SCRUB
      ======================================================= */
   function gaitScene() {
     var section = $('.gait'), pin = $('.gait__pin');
@@ -422,7 +1104,10 @@
       counters.forEach(function (el, i) {
         var to = parseFloat(el.getAttribute('data-to')) || 0;
         var local = clamp((p - i * 0.06) / 0.55, 0, 1);
-        el.textContent = Math.round(to * easeOut(local));
+        var shown = Math.round(to * easeOut(local));
+        // Só toca no nó de texto quando o número muda: com scrub a 60fps
+        // isso evitava reescrever o mesmo dígito dezenas de vezes por segundo.
+        if (el.__v !== shown) { el.__v = shown; el.textContent = shown; }
       });
       fills.forEach(function (el, i) {
         var to = parseFloat(el.getAttribute('data-fill')) || 0;
@@ -682,69 +1367,6 @@
   }
 
   /* =======================================================
-     ( 10 ) CONSTELAÇÃO DE ENCERRAMENTO
-     ======================================================= */
-  function constellation() {
-    var canvas = $('#constCanvas'); if (!canvas) return;
-    var ctx = canvas.getContext('2d'); if (!ctx) return;
-    var DPR = Math.min(window.devicePixelRatio || 1, 2);
-    var w = 0, h = 0, stars = [];
-    var COUNT = window.matchMedia('(max-width: 680px)').matches ? 60 : 130;
-
-    function build() {
-      var host = canvas.parentElement;
-      w = host.clientWidth; h = host.clientHeight;
-      canvas.width = w * DPR; canvas.height = h * DPR;
-      canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-      stars = [];
-      for (var i = 0; i < COUNT; i++) {
-        stars.push({
-          x: Math.random() * w, y: Math.random() * h,
-          vx: (Math.random() - 0.5) * 0.16, vy: (Math.random() - 0.5) * 0.16,
-          r: 0.5 + Math.random() * 1.4, a: 0.25 + Math.random() * 0.6
-        });
-      }
-    }
-
-    function frame() {
-      ctx.clearRect(0, 0, w, h);
-      for (var i = 0; i < stars.length; i++) {
-        var s = stars[i];
-        if (!REDUCED) {
-          s.x += s.vx; s.y += s.vy;
-          if (s.x < -10) s.x = w + 10; if (s.x > w + 10) s.x = -10;
-          if (s.y < -10) s.y = h + 10; if (s.y > h + 10) s.y = -10;
-        }
-        for (var j = i + 1; j < stars.length; j++) {
-          var o = stars[j], dx = s.x - o.x, dy = s.y - o.y, d2 = dx * dx + dy * dy;
-          if (d2 < 15000) {
-            ctx.globalAlpha = (1 - d2 / 15000) * 0.10;
-            ctx.strokeStyle = '#E6C87A';
-            ctx.lineWidth = 0.6;
-            ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(o.x, o.y); ctx.stroke();
-          }
-        }
-        ctx.globalAlpha = s.a;
-        ctx.fillStyle = '#E6C87A';
-        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-    }
-
-    build();
-    window.addEventListener('resize', function () { build(); frame(); });
-
-    if (REDUCED) { frame(); return; }
-    var visible = true;
-    if ('IntersectionObserver' in window) {
-      new IntersectionObserver(function (en) { visible = en[0].isIntersecting; },
-        { rootMargin: '120px' }).observe(canvas);
-    }
-    (function loop() { requestAnimationFrame(loop); if (visible) frame(); })();
-  }
-
-  /* =======================================================
      REVELAÇÃO AO ROLAR
      ======================================================= */
   function reveals() {
@@ -775,8 +1397,8 @@
     smoothScroll();
     anchors();
     nav();
-    horseParticles();
     gaitScene();
+    pegasus();
     marquee();
     gallery();
     qrCode();
@@ -784,9 +1406,13 @@
     versusNumbers();
     calculator();
     faq();
-    constellation();
     reveals();
     if (hasGSAP) setTimeout(function () { ScrollTrigger.refresh(); }, 700);
+  }
+
+  // Gancho de inspeção da anatomia: só existe com ?debug na URL.
+  if (/[?&]debug/.test(location.search)) {
+    window.PEGASO = { drawHorse: drawHorse, drawWing: drawWing, legJoints: legJoints, ANAT: ANAT };
   }
 
   // O portão sobe na hora, independentemente das bibliotecas.

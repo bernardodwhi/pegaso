@@ -63,19 +63,78 @@ animais) e **Inter** (UI e dados); a hierarquia sobe por peso, não por tamanho.
 9. FAQ
 10. Encerramento + rodapé flutuante
 
+## O Pégaso
+
+O animal não é um asset: ele é construído em tempo de execução e é **um só
+objeto**, num palco fixo (`#stage`) que atravessa a página inteira.
+
+### Anatomia
+
+A silhueta segue proporções de cavalo de sela em formato "quadrado", com a
+altura da cernelha `H = 474`:
+
+| medida | proporção |
+| --- | --- |
+| corpo (ponta da espádua → nádega) | ≈ H |
+| solo → cotovelo | ≈ H/2 |
+| profundidade do tronco | ≈ H/2 |
+| cabeça | ≈ 0,40 H |
+| pescoço (nuca → cernelha) | ≈ 1,5 cabeças |
+
+O traço decisivo é o **perfil dorsal em S**: cernelha em pico acima da linha do
+dorso, dorso curto e côncavo, garupa subindo de novo. É o que separa o cavalo do
+asinino, cujo dorso é plano (Maśko et al., *Animals* 2022; Burnham, *AAEP Proc.*
+48/2002). Somam-se pescoço longo e arqueado de inserção alta, cabeça refinada de
+chanfro reto, membros longos com joelho, jarrete e boleto marcados, orelhas
+curtas e cauda cheia de inserção alta.
+
+### Movimento
+
+Os membros têm rig próprio: cada partícula guarda em que membro, segmento e
+posição interna vive, e a pose é recalculada a cada quadro por cinemática
+direta. A quartela é resolvida por IK contra a linha do solo, para o casco
+assentar plano em vez de flutuar nos extremos do apoio.
+
+O ciclo é de **marcha** — quatro tempos, sem suspensão, apoio ocupando 62% do
+ciclo de cada membro, o que produz os momentos de tríplice apoio que o laudo
+mede. Os quatro cascos batem em `t = 0 · 0,35 · 0,50 · 0,85`, e é nesse ritmo
+que a poeira dourada se desprende e as partículas pulsam.
+
+Crina e cauda ondulam por uma onda que corre da raiz à ponta, com amplitude
+sorteada por partícula — mechas soltas desenhadas no contorno sempre leem como
+espinhos, então o vento vive na animação, não na silhueta.
+
+### Coreografia
+
+A cena vigente é a **última cuja seção cruzou uma linha da viewport** — regra
+monótona na rolagem, imune à ordem em que gatilhos disparam durante um salto.
+
+| seção | Pégaso |
+| --- | --- |
+| herói | marcha, à direita |
+| a marcha | grande e apagado atrás de tudo, pulsando no ritmo dos cascos |
+| Olimpo | as asas se abrem pena a pena, quando a ficha entra |
+| comparativo → FAQ | recuado e discreto, sem competir com os dados |
+| encerramento | empina, bate a asa uma vez, vira raio e se recompõe na constelação de Pégaso |
+
+O encerramento é uma cena longa com o miolo *sticky*: dá espaço de rolagem sem
+um segundo pin de ScrollTrigger, que desincronizava com o pin da marcha.
+
 ## Comportamento e degradação
 
-O cavalo do herói é gerado em tempo de execução: a silhueta é desenhada num
-canvas fora da tela, os pixels são amostrados (com peso extra no contorno) e
-viram ~15 mil pontos num `THREE.Points` com shader próprio.
-
-- **Sem WebGL ou sem Three.js** → esfera de partículas em Canvas 2D.
+- **Sem WebGL ou sem Three.js** → a mesma silhueta corrigida, estática, em
+  pontos dourados no Canvas 2D.
 - **Sem GSAP/Lenis** → a página inteira continua funcionando: a rolagem volta
   ao padrão do navegador, a seção da marcha completa o laudo ao entrar na tela
   e o letreiro fica estático.
-- **`prefers-reduced-motion: reduce`** → tudo estático: as partículas desenham
-  um único quadro, não há pin nem scrub, e os contadores já aparecem no valor
-  final.
+- **`prefers-reduced-motion: reduce`** → tudo estático: nenhum WebGL, um
+  emblema de Pégaso alado em traço fino dourado no lugar da nuvem, sem pin nem
+  scrub, e os contadores já no valor final.
+- **Guarda de quadro**: o buffer do palco pode render abaixo do tamanho em CSS
+  (o CSS reamplia). Se a placa não sustenta 60fps ele encolhe até 60%; em GPU
+  capaz volta sozinho à resolução cheia. O custo dominante é preenchimento, não
+  contagem de partículas — medido em SwiftShader, 25fps a 100% contra 31fps a
+  70% de buffer com a mesma nuvem.
 - **Abaixo de 1024px** o pin é desligado (o layout vira uma coluna e não caberia
   em uma tela), mas o mesmo scrub continua rodando ao longo da seção.
 - `js/app.js` é carregado **antes** das bibliotecas, de propósito: `defer`

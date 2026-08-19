@@ -161,17 +161,28 @@ button{font:inherit;color:inherit}
   display:grid;align-items:center;
   padding:clamp(110px,14vh,160px) var(--pad) clamp(92px,11vh,130px);
 }
-.hero__stage{
-  position:absolute;inset:0 0 0 auto;
-  width:56%;
-  pointer-events:none;
-}
-.hero__stage canvas{width:100%;height:100%;display:block}
-.hero__glow{
+.stage{position:fixed;inset:0;z-index:0;pointer-events:none}
+.stage[hidden]{display:none}
+.stage canvas{width:100%;height:100%;display:block}
+.stage__glow{
   position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:70%;aspect-ratio:1;border-radius:50%;
-  background:radial-gradient(circle,rgba(201,162,39,.09),transparent 68%);
-  filter:blur(24px);
+  width:82%;aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle,rgba(201,162,39,.14),transparent 66%);
+  filter:blur(40px);opacity:.25;transition:opacity .28s linear;
+}
+/* O conteúdo vive acima do palco; as seções são transparentes, então
+   o Pégaso aparece por trás e os cartões o encobrem de propósito. */
+.nav,main,.foot{position:relative;z-index:1}
+
+/* Emblema estático de Pégaso — alternativa sob movimento reduzido. */
+.emblem{
+  position:absolute;inset:0;display:grid;place-items:center;
+  pointer-events:none;z-index:0;
+}
+.emblem[hidden]{display:none}
+.emblem svg{
+  width:min(50vw,600px);height:auto;color:var(--champagne);opacity:.42;
+  transform:translateX(22%);
 }
 .hero__copy{position:relative;z-index:2;width:100%;max-width:var(--wrap);margin-inline:auto}
 .hero__copy .label{margin-bottom:28px}
@@ -519,20 +530,20 @@ input[type=range]::-moz-range-thumb{
 /* =========================================================
    ( 10 ) ENCERRAMENTO
    ========================================================= */
-.end{
-  position:relative;isolation:isolate;
-  min-height:92svh;display:grid;place-items:center;text-align:center;
+.end{position:relative;isolation:isolate;min-height:250svh}
+.end__sticky{
+  position:sticky;top:0;height:100svh;
+  display:grid;place-items:center;text-align:center;
   padding:var(--sec) var(--pad);overflow:hidden;
 }
 .end__bg{
   position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
   opacity:.2;filter:grayscale(.5) contrast(1.1);z-index:-2;
 }
-.end::after{
+.end__sticky::after{
   content:"";position:absolute;inset:0;z-index:-1;
-  background:radial-gradient(ellipse at center,rgba(11,13,16,.55),var(--bg) 72%);
+  background:radial-gradient(ellipse at center,rgba(11,13,16,.30),rgba(11,13,16,.78) 78%);
 }
-#constCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
 .end__inner{position:relative;display:grid;justify-items:center;gap:26px;max-width:900px}
 .end__title{
   font-family:var(--serif);font-weight:300;
@@ -579,7 +590,6 @@ input[type=range]::-moz-range-thumb{
    RESPONSIVO
    ========================================================= */
 @media (max-width:1180px){
-  .hero__stage{width:62%;opacity:.75}
   .creds__grid{grid-template-columns:repeat(2,1fr)}
   .stats{grid-template-columns:repeat(2,1fr)}
   .stat{border-bottom:1px solid var(--line)}
@@ -609,8 +619,7 @@ input[type=range]::-moz-range-thumb{
 
 @media (max-width:680px){
   .hero{min-height:96svh;align-content:center}
-  .hero__stage{inset:0;width:100%;opacity:.26}
-  .hero__glow{width:100%}
+  .emblem svg{width:86vw;transform:none;opacity:.22}
   .hero__title{max-width:none}
   .hero__meta{gap:14px}
   .hero__meta span{min-width:0;flex:1 1 28%;font-size:9px;letter-spacing:.18em}
