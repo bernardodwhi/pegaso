@@ -107,7 +107,8 @@
        corpo (ponta da espádua → nádega) ≈ H     → formato quadrado
        solo → cotovelo ≈ H/2                     → membros longos
        cabeça ≈ 0,40 H  ·  pescoço (nuca → cernelha) ≈ 1,5 cabeças
-       profundidade do tronco (cernelha → ventre) ≈ H/2
+       profundidade da cilha (cernelha → ventre) ≈ H/2, e o ventre
+       SOBE dali até o vazio: o ponto mais fundo é a cilha, não o meio
      A cernelha é um pico acima da linha do dorso, o dorso é curto e
      levemente côncavo e a garupa sobe de novo: é esse "S" do perfil
      dorsal que separa o cavalo do asinino, cujo dorso é plano.
@@ -240,10 +241,10 @@
     ctx.bezierCurveTo(728, 197, 750, 200, 768, 214);   // garupa longa
     ctx.bezierCurveTo(778, 221, 792, 246, 796, 286);   // nádega
     ctx.bezierCurveTo(800, 330, 788, 366, 762, 392);   // ísquio
-    ctx.bezierCurveTo(738, 410, 716, 414, 694, 408);   // soldra
-    ctx.bezierCurveTo(650, 416, 596, 430, 534, 434);   // ventre
-    ctx.bezierCurveTo(470, 436, 410, 430, 358, 420);   // ventre → cotovelo
-    ctx.bezierCurveTo(332, 414, 314, 398, 308, 374);   // peito
+    ctx.bezierCurveTo(742, 400, 716, 396, 694, 392);   // vazio: recolhimento do flanco
+    ctx.bezierCurveTo(660, 404, 610, 416, 552, 422);   // barril, com curvatura
+    ctx.bezierCurveTo(488, 428, 412, 430, 358, 427);   // cilha: ponto mais fundo
+    ctx.bezierCurveTo(332, 420, 314, 400, 308, 374);   // peito
     ctx.bezierCurveTo(300, 334, 284, 288, 262, 234);   // pescoço, borda inferior
     ctx.bezierCurveTo(256, 220, 248, 208, 242, 198);   // garganta
     ctx.bezierCurveTo(240, 224, 234, 248, 220, 266);   // ganacha
@@ -296,7 +297,7 @@
   // dela, e desce cheia até afinar na ponta. Um contorno só — mechas
   // desenhadas ao lado abrem frestas escuras e viram leque listrado.
   var TAIL_SPINE = [[732, 226], [806, 222], [858, 262], [900, 332], [926, 414], [938, 494], [934, 554]];
-  var TAIL_W = [44, 54, 60, 56, 44, 26, 8];
+  var TAIL_W = [44, 52, 50, 42, 32, 21, 8];
 
   function drawTail(ctx, sway) {
     var s = sway || 0, n = TAIL_SPINE.length;
