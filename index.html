@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pégaso — Análise de marcha equina e o Olimpo</title>
+<meta name="description" content="Pégaso: análise de marcha equina em 4 andamentos e o Olimpo, o álbum virtual compartilhável dos cavalos de elite do seu haras.">
+<meta name="theme-color" content="#0B0D10">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230B0D10'/%3E%3Cpath d='M5 23c4-1 6.2-3.2 7.8-6.4C14.6 12.8 17 11 20 11l7-5-2.8 7c-.9 2.2-1.2 4.6-1 6.9l.4 4.6-3.6-3.2-3 3-1.2-4.2-4 2L13 17' fill='none' stroke='%23E6C87A' stroke-width='1.6' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://images.unsplash.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ( 00 ) PORTÃO DO HARAS — PRELOADER -->
+<div class="gate" id="gate" role="status" aria-live="polite" aria-label="Carregando o Pégaso">
+  <div class="gate__inner">
+    <span class="gate__label">( PÉGASO )</span>
+    <div class="gate__count" id="gateCount">000</div>
+    <div class="gate__track"><span class="gate__bar" id="gateBar"></span></div>
+    <span class="gate__note">ABRINDO O PORTÃO DO HARAS</span>
+  </div>
+</div>
+
+<a class="skip" href="#conteudo">Pular para o conteúdo</a>
+
+<header class="nav" id="nav">
+  <a class="nav__brand" href="#inicio" aria-label="Pégaso, página inicial">
+    <svg class="nav__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M3 17c3.2-.6 5-2.4 6.2-4.8C10.6 9.4 12.6 8 15 8l6-4-2.2 5.4c-.7 1.7-1 3.6-.8 5.4l.4 4.2-3-2.6-2.6 2.6-1-3.4-3.4 1.6L9 13"
+            fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+    <span>PÉGASO</span>
+  </a>
+  <nav class="nav__links" aria-label="Navegação principal">
+    <a href="#inicio">INÍCIO</a>
+    <a href="#olimpo">OLIMPO</a>
+    <a href="#planos">PLANOS</a>
+    <a class="nav__cta" href="#contato">FALAR COM O PÉGASO</a>
+  </nav>
+</header>
+
+<main id="conteudo">
+
+  <!-- ( 01 ) HERÓI -->
+  <section class="hero" id="inicio">
+    <div class="hero__stage" aria-hidden="true">
+      <canvas id="horseCanvas"></canvas>
+      <div class="hero__glow"></div>
+    </div>
+    <div class="hero__copy">
+      <p class="label">( PÉGASO ) &mdash; ANÁLISE DE MARCHA + OLIMPO</p>
+      <h1 class="hero__title">Seu cavalo não precisa de mais fotos.<br><em>Precisa ser eternizado.</em></h1>
+      <p class="hero__lead">Medimos cada tempo da marcha em 60 quadros por segundo e transformamos o resultado num dossiê digno do animal — dentro do Olimpo, o álbum virtual do seu haras.</p>
+      <div class="hero__actions">
+        <a class="btn btn--gold" href="#marcha">VER A MARCHA</a>
+        <a class="btn" href="#olimpo">CONHECER O OLIMPO</a>
+      </div>
+      <p class="hero__meta"><span>+40 HARAS</span><span>ABCCMM</span><span>LGPD</span></p>
+    </div>
+    <span class="hero__scroll" aria-hidden="true">ROLE<i></i></span>
+  </section>
+
+  <!-- ( 02 ) CENA DA MARCHA — SCROLLTELLING -->
+  <section class="gait" id="marcha">
+    <div class="gait__pin">
+      <div class="wrap gait__grid">
+        <div class="gait__left">
+          <p class="label">( A MARCHA )</p>
+          <h2 class="gait__title">A precisão que o olho <em>treinado sente</em> — e o papel nunca provou.</h2>
+          <ul class="counters" id="counters">
+            <li><span class="counter" data-to="4">0</span><span class="counter__cap">ANDAMENTOS MAPEADOS</span></li>
+            <li><span class="counter" data-to="60">0</span><span class="counter__cap">QUADROS POR SEGUNDO</span></li>
+            <li><span class="counter" data-to="12">0</span><span class="counter__cap">ARTICULAÇÕES RASTREADAS</span></li>
+          </ul>
+          <p class="gait__note">Marcha batida, picada e de centro. O Pégaso separa o que é diagonal do que é lateral, mede a sobrepegada e devolve um laudo assinado — em minutos, na beira da pista.</p>
+        </div>
+
+        <div class="gait__right">
+          <div class="phone" role="img" aria-label="Celular exibindo o laudo de marcha do animal sendo gerado pelo Pégaso">
+            <div class="phone__notch" aria-hidden="true"></div>
+            <div class="phone__screen">
+              <div class="rep">
+                <div class="rep__head">
+                  <span class="label">( LAUDO )</span>
+                  <span class="rep__id">MM-2019-44872</span>
+                </div>
+                <h3 class="rep__name">Relâmpago do Vale</h3>
+                <div class="rep__bars">
+                  <div class="rep__row"><span>DIAGONAL DIREITA</span><span class="rep__track"><i data-fill="86"></i></span><b>86</b></div>
+                  <div class="rep__row"><span>DIAGONAL ESQUERDA</span><span class="rep__track"><i data-fill="82"></i></span><b>82</b></div>
+                  <div class="rep__row"><span>SOBREPEGADA</span><span class="rep__track"><i data-fill="74"></i></span><b>74</b></div>
+                  <div class="rep__row"><span>REGULARIDADE</span><span class="rep__track"><i data-fill="93"></i></span><b>93</b></div>
+                </div>
+                <div class="rep__skel">
+                  <span class="label">( ARTICULAÇÕES )</span>
+                  <svg viewBox="0 0 1000 700" class="skel" aria-hidden="true" focusable="false">
+                    <g class="skel__wire" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M150 262 C139 279 147 297 176 303 C215 301 261 255 292 200 C320 262 366 331 414 392 C438 412 454 430 472 448 C528 470 608 478 686 470 C748 464 796 446 838 404 C866 376 884 330 886 282 C884 250 866 232 840 228 C772 220 690 246 596 224 C510 178 392 132 300 120 C282 116 264 113 250 116 C224 158 186 214 150 262 Z" stroke-width="7"/>
+                      <path d="M452 400 L410 505 L372 592 L350 640 M494 412 L540 515 L585 592 L618 634 M812 344 L760 455 L800 530 L790 600 L782 646 M852 358 L872 458 L884 548 L890 634 M874 246 L930 288 L958 358 L972 440 L978 520" stroke-width="13"/>
+                    </g>
+                    <g class="skel__joints" id="gaitJoints"><circle cx="250" cy="116" r="15"/><circle cx="292" cy="200" r="15"/><circle cx="452" cy="400" r="15"/><circle cx="410" cy="505" r="15"/><circle cx="372" cy="592" r="15"/><circle cx="494" cy="412" r="15"/><circle cx="596" cy="224" r="15"/><circle cx="812" cy="344" r="15"/><circle cx="800" cy="530" r="15"/><circle cx="790" cy="600" r="15"/><circle cx="886" cy="282" r="15"/><circle cx="860" cy="235" r="15"/></g>
+                  </svg>
+                </div>
+                <div class="rep__verdict">
+                  <span class="label">( CLASSIFICAÇÃO )</span>
+                  <strong id="repVerdict">MARCHA BATIDA</strong>
+                </div>
+                <div class="rep__progress">
+                  <span class="rep__ptrack"><i id="repProgress"></i></span>
+                  <span class="rep__pnum" id="repPercent">0%</span>
+                </div>
+                <p class="rep__status" id="repStatus">PROCESSANDO QUADROS…</p>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn--sm" type="button" id="replayBtn">VER DE NOVO</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ( 03 ) LETREIRO DO PLANTEL -->
+  <section class="marquee" aria-label="Destaques do Pégaso">
+    <div class="marquee__row" id="marquee">
+      <ul class="marquee__list">
+        <li>+40 HARAS ATENDIDOS</li><li aria-hidden="true">&bull;</li>
+        <li>MARCHA BATIDA E PICADA</li><li aria-hidden="true">&bull;</li>
+        <li>EXPORTAÇÃO EM PDF</li><li aria-hidden="true">&bull;</li>
+        <li>QR CODE POR ANIMAL</li><li aria-hidden="true">&bull;</li>
+        <li>LGPD</li><li aria-hidden="true">&bull;</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ( 04 ) OLIMPO — FICHA DE CAMPEÃO -->
+  <section class="olimpo" id="olimpo">
+    <div class="wrap">
+      <header class="sec__head">
+        <p class="label">( OLIMPO )</p>
+        <h2 class="sec__title">Uma ficha que vale <em>uma visita ao haras</em>.</h2>
+        <p class="sec__lead">Cada animal ganha uma página própria, compartilhável por link ou QR code, com pedigree, laudo de marcha e galeria de conquistas.</p>
+      </header>
+
+      <article class="dossie">
+        <div class="dossie__portrait">
+          <img src="https://images.unsplash.com/photo-1566762492163-271805d66b63?w=1600&q=80"
+               alt="Retrato em contraluz de um cavalo de pelagem escura, cabeça erguida" width="1600" height="2000" loading="lazy" decoding="async">
+          <span class="dossie__medal" aria-hidden="true">CAMPEÃO</span>
+        </div>
+
+        <div class="dossie__body">
+          <p class="label">( FICHA DE CAMPEÃO Nº 001 )</p>
+          <h3 class="dossie__name">Relâmpago <em>do Vale</em></h3>
+          <p class="dossie__sub">MANGALARGA MARCHADOR &mdash; HARAS SANTA CLARA, OLIVEIRA / MG</p>
+
+          <dl class="stats">
+            <div class="stat"><dt>PELAGEM</dt><dd>Tordilho negro</dd></div>
+            <div class="stat"><dt>NASCIMENTO</dt><dd>12.03.2019</dd></div>
+            <div class="stat"><dt>REGISTRO ABCCMM</dt><dd>MM-2019-44872</dd></div>
+            <div class="stat"><dt>MARCHA</dt><dd>Batida &mdash; 4 tempos</dd></div>
+          </dl>
+
+          <div class="pedigree">
+            <div class="ped__card">
+              <span class="label">( PAI )</span>
+              <p class="ped__name">Tufão da Serra Azul</p>
+              <p class="ped__meta">MM-2012-19004 &mdash; Campeão Nacional 2016</p>
+            </div>
+            <span class="ped__line" aria-hidden="true"></span>
+            <div class="ped__card">
+              <span class="label">( MÃE )</span>
+              <p class="ped__name">Estrela do Vale Encantado</p>
+              <p class="ped__meta">MM-2013-27781 &mdash; Melhor Marcha 2017</p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <div class="gallery" id="gallery">
+        <div class="gallery__head">
+          <p class="label">( CONQUISTAS )</p>
+          <div class="gallery__nav">
+            <button type="button" class="arrow" id="galPrev" aria-label="Conquista anterior">&#8592;</button>
+            <span class="gallery__idx"><b id="galIdx">01</b> / 05</span>
+            <button type="button" class="arrow" id="galNext" aria-label="Próxima conquista">&#8594;</button>
+          </div>
+        </div>
+        <div class="gallery__viewport">
+          <ul class="gallery__track" id="galTrack">
+            <li class="slide">
+              <img src="https://images.unsplash.com/photo-1559074146-dc8753ff8155?w=1600&q=80" alt="Close do garanhão com arreio, em pé sobre o gramado" width="1600" height="1067" loading="lazy" decoding="async">
+              <p class="slide__cap"><span>EXPOSIÇÃO NACIONAL, 2025</span><b>Campeão da marcha batida</b></p>
+            </li>
+            <li class="slide">
+              <img src="https://images.unsplash.com/photo-1670212433014-b2435aca06a4?w=1600&q=80" alt="Juba do cavalo ao vento durante o deslocamento" width="1600" height="1067" loading="lazy" decoding="async">
+              <p class="slide__cap"><span>COPA MINAS, 2024</span><b>Melhor conjunto do haras</b></p>
+            </li>
+            <li class="slide">
+              <img src="https://images.unsplash.com/photo-1553284965-5dd8352ff1bd?w=1600&q=80" alt="Cavalo a galope em campo aberto" width="1600" height="1067" loading="lazy" decoding="async">
+              <p class="slide__cap"><span>LEILÃO ESTRELA, 2024</span><b>Maior lance da noite</b></p>
+            </li>
+            <li class="slide">
+              <img src="https://images.unsplash.com/photo-1504310977373-186d29f99322?w=1600&q=80" alt="Crina do animal iluminada em contraluz dourada" width="1600" height="1067" loading="lazy" decoding="async">
+              <p class="slide__cap"><span>REGIONAL SUDESTE, 2023</span><b>Reservado de campeão</b></p>
+            </li>
+            <li class="slide">
+              <img src="https://images.unsplash.com/photo-1598362042346-70c59713811f?w=1600&q=80" alt="Silhuetas de cavalos recortadas contra o pôr do sol" width="1600" height="1067" loading="lazy" decoding="async">
+              <p class="slide__cap"><span>MORFOLOGIA, 2023</span><b>Nota 9,4 em conformação</b></p>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <footer class="dossie__foot">
+        <div class="qr">
+          <div class="qr__code" id="qrCode" role="img" aria-label="QR code de exemplo que leva à ficha do animal no Olimpo"></div>
+          <div class="qr__text">
+            <p class="label">( ACESSO DIRETO )</p>
+            <p>Cole o QR no cabresto, no catálogo do leilão ou na porteira da baia. Quem apontar a câmera vê a ficha completa em dois segundos.</p>
+          </div>
+        </div>
+        <button class="btn btn--gold" type="button" id="pdfBtn" data-label="EXPORTAR PARA PDF">EXPORTAR PARA PDF</button>
+      </footer>
+    </div>
+  </section>
+
+  <!-- ( 05 ) COMPARATIVO -->
+  <section class="versus" id="comparativo">
+    <div class="wrap">
+      <header class="sec__head">
+        <p class="label">( COMPARATIVO )</p>
+        <h2 class="sec__title">O mesmo animal, <em>duas histórias</em>.</h2>
+      </header>
+
+      <div class="vs__grid">
+        <article class="vs__card">
+          <p class="label">( SEM PÉGASO )</p>
+          <p class="vs__big" data-count="18" data-suffix="%">0%</p>
+          <p class="vs__bigcap">DOS INTERESSADOS PEDEM UMA SEGUNDA VISITA</p>
+          <ul class="vs__rows">
+            <li><span>Apresentar um animal</span><b>3 dias de agenda</b></li>
+            <li><span>Prova da marcha</span><b>Vídeo de celular</b></li>
+            <li><span>Pedigree</span><b>Pasta de papel</b></li>
+            <li><span>Alcance do plantel</span><b>Quem vem ao haras</b></li>
+          </ul>
+          <div class="bar"><i style="width:28%"></i></div>
+          <p class="vs__barcap">VALOR PERCEBIDO &mdash; 28</p>
+        </article>
+
+        <article class="vs__card vs__card--win">
+          <p class="label label--gold">( COM PÉGASO )</p>
+          <p class="vs__big vs__big--gold" data-count="63" data-suffix="%">0%</p>
+          <p class="vs__bigcap">DOS INTERESSADOS PEDEM UMA SEGUNDA VISITA</p>
+          <ul class="vs__rows">
+            <li><span>Apresentar um animal</span><b>8 segundos e um link</b></li>
+            <li><span>Prova da marcha</span><b>Laudo em 4 andamentos</b></li>
+            <li><span>Pedigree</span><b>Ficha viva no Olimpo</b></li>
+            <li><span>Alcance do plantel</span><b>Qualquer criador do país</b></li>
+          </ul>
+          <div class="bar bar--win"><i style="width:94%"></i></div>
+          <p class="vs__barcap">VALOR PERCEBIDO &mdash; 94</p>
+        </article>
+      </div>
+
+      <p class="vs__close">O plantel é o mesmo. <em>O valor percebido, não.</em></p>
+    </div>
+  </section>
+
+  <!-- ( 06 ) CALCULADORA DE VALORIZAÇÃO -->
+  <section class="calc" id="planos">
+    <div class="wrap calc__grid">
+      <div class="calc__intro">
+        <p class="label">( VALORIZAÇÃO )</p>
+        <h2 class="sec__title">Quanto o seu plantel <em>deixa na mesa</em>?</h2>
+        <p class="sec__lead">Ajuste os controles com os números reais do seu haras. A conta é simples e conservadora — e é o começo de uma conversa, não o fim dela.</p>
+        <ul class="calc__notes">
+          <li><span>( A )</span>Partimos do valor médio que você mesmo informa, sem inflar tabela.</li>
+          <li><span>( B )</span>A faixa vai de 4% a 12%, conforme o quanto o plantel já está documentado.</li>
+          <li><span>( C )</span>Não entra no cálculo o ganho de alcance comercial fora do estado.</li>
+        </ul>
+      </div>
+
+      <form class="calc__panel" id="calcForm" novalidate>
+        <div class="field">
+          <label for="animais">ANIMAIS NO PLANTEL</label>
+          <output class="field__out" id="animaisOut" for="animais">24</output>
+          <input type="range" id="animais" name="animais" min="1" max="200" step="1" value="24">
+        </div>
+
+        <div class="field">
+          <label for="valor">VALOR MÉDIO POR ANIMAL (R$)</label>
+          <output class="field__out" id="valorOut" for="valor">R$ 60.000</output>
+          <input type="range" id="valor" name="valor" min="5000" max="500000" step="5000" value="60000">
+        </div>
+
+        <fieldset class="chips">
+          <legend>DOCUMENTAÇÃO ATUAL</legend>
+          <div class="chips__row">
+            <button type="button" class="chip is-on" data-uplift="0.12" aria-pressed="true">NENHUMA</button>
+            <button type="button" class="chip" data-uplift="0.08" aria-pressed="false">FOTOS SOLTAS</button>
+            <button type="button" class="chip" data-uplift="0.04" aria-pressed="false">ÁLBUM COMPLETO</button>
+          </div>
+        </fieldset>
+
+        <div class="calc__result">
+          <p class="label">( POTENCIAL DE VALORIZAÇÃO )</p>
+          <p class="calc__value" id="calcValue" aria-live="polite">R$ 172.800</p>
+          <p class="calc__sub">Sobre um plantel avaliado hoje em <b id="calcBase">R$ 1.440.000</b>.</p>
+        </div>
+
+        <p class="calc__disc">Estimativa, não promessa. O número depende de pedigree, resultados em pista, condição do animal e da negociação entre criadores.</p>
+      </form>
+    </div>
+  </section>
+
+  <!-- ( 07 ) CREDENCIAIS -->
+  <section class="creds">
+    <div class="wrap">
+      <header class="sec__head">
+        <p class="label">( CREDENCIAIS )</p>
+        <h2 class="sec__title">Por que os haras <em>confiam o plantel</em> ao Pégaso.</h2>
+      </header>
+      <ol class="creds__grid">
+        <li class="cred"><span class="cred__dash" aria-hidden="true"></span><p class="label">( 01 )</p><h3>Registro genealógico integrado</h3><p>Pedigree, registro ABCCMM e histórico de exposições vêm juntos na ficha — sem redigitar nada.</p></li>
+        <li class="cred"><span class="cred__dash" aria-hidden="true"></span><p class="label">( 02 )</p><h3>Dados protegidos (LGPD)</h3><p>Você decide o que é público, o que é por link e o que nunca sai do haras. Revogável a qualquer momento.</p></li>
+        <li class="cred"><span class="cred__dash" aria-hidden="true"></span><p class="label">( 03 )</p><h3>Análise validada em pista</h3><p>O modelo foi conferido contra o olho de juízes credenciados em provas oficiais de marcha.</p></li>
+        <li class="cred"><span class="cred__dash" aria-hidden="true"></span><p class="label">( 04 )</p><h3>Suporte 1x1 com o haras</h3><p>Um especialista acompanha a captação dos primeiros animais e revisa as fichas com você.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ( 08 ) DEPOIMENTOS -->
+  <section class="says">
+    <div class="wrap">
+      <header class="sec__head">
+        <p class="label">( QUEM JÁ USA )</p>
+        <h2 class="sec__title">Criadores que pararam de <em>explicar a marcha</em> — e passaram a mostrá-la.</h2>
+      </header>
+      <ul class="says__grid">
+        <li class="say">
+          <p class="say__quote">“Mandei o link da ficha para um comprador de Goiás às onze da noite. Na quinta-feira ele estava no haras. O animal saiu por trinta por cento acima da tabela.”</p>
+          <div class="say__who"><span class="avatar" aria-hidden="true">R</span><div><b>Ricardo Maciel</b><span>Haras Santa Clara &mdash; Oliveira / MG</span></div></div>
+        </li>
+        <li class="say">
+          <p class="say__quote">“O laudo encerrou uma discussão de dez anos sobre a marcha da minha linhagem. Agora é número, não é opinião de beira de pista.”</p>
+          <div class="say__who"><span class="avatar" aria-hidden="true">A</span><div><b>Ana Lúcia Ferraz</b><span>Haras Vale Encantado &mdash; Uberaba / MG</span></div></div>
+        </li>
+        <li class="say">
+          <p class="say__quote">“Coloquei o QR code no catálogo do leilão. Todo mundo abriu. O Olimpo virou o cartão de visita do haras.”</p>
+          <div class="say__who"><span class="avatar" aria-hidden="true">J</span><div><b>João Bernardes</b><span>Haras Serra Azul &mdash; Bagé / RS</span></div></div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ( 09 ) FAQ -->
+  <section class="faq" id="faq">
+    <div class="wrap faq__grid">
+      <header class="faq__head">
+        <p class="label">( DÚVIDAS )</p>
+        <h2 class="sec__title">O que os criadores <em>sempre perguntam</em>.</h2>
+      </header>
+      <div class="faq__list">
+        <details><summary><span>Funciona para marcha batida e picada?</span><i aria-hidden="true"></i></summary><div class="faq__a"><p>Sim. O Pégaso classifica batida, picada e os intermediários de centro, separando o apoio diagonal do lateral quadro a quadro. O laudo traz a classificação e a regularidade dos tempos.</p></div></details>
+        <details><summary><span>E se eu não tiver fotos profissionais?</span><i aria-hidden="true"></i></summary><div class="faq__a"><p>A captação é feita com celular, seguindo um roteiro curto que enviamos. Nossa equipe trata o material e monta a ficha. Se você já tiver acervo fotográfico, ele entra na galeria de conquistas.</p></div></details>
+        <details><summary><span>Quem vê o álbum do meu animal?</span><i aria-hidden="true"></i></summary><div class="faq__a"><p>Só quem você autorizar. Cada ficha pode ser pública, restrita a quem tem o link ou privada. O acesso é revogável a qualquer momento e todo compartilhamento fica registrado.</p></div></details>
+        <details><summary><span>Quanto tempo leva para o laudo ficar pronto?</span><i aria-hidden="true"></i></summary><div class="faq__a"><p>Minutos após o envio do vídeo. Na prática, o criador termina a apresentação na pista e já recebe o laudo no celular, pronto para exportar em PDF.</p></div></details>
+        <details><summary><span>O laudo substitui o julgamento oficial?</span><i aria-hidden="true"></i></summary><div class="faq__a"><p>Não. Ele documenta e sustenta o que o juiz vê — é uma ferramenta de criação, seleção e apresentação comercial, não um substituto do julgamento da associação.</p></div></details>
+        <details><summary><span>Posso levar meu plantel inteiro para o Olimpo?</span><i aria-hidden="true"></i></summary><div class="faq__a"><p>Pode. A implantação é feita em lotes, começando pelos animais de vitrine. O especialista responsável pelo seu haras define o ritmo com você.</p></div></details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ( 10 ) ENCERRAMENTO -->
+  <section class="end" id="contato">
+    <canvas id="constCanvas" aria-hidden="true"></canvas>
+    <img class="end__bg" src="https://images.unsplash.com/photo-1598362042346-70c59713811f?w=1600&q=80"
+         alt="Silhuetas de cavalos recortadas contra o céu no fim da tarde" width="1600" height="1067" loading="lazy" decoding="async">
+    <div class="end__inner">
+      <p class="label">( OLIMPO )</p>
+      <h2 class="end__title">Todo grande cavalo merece <em>um lugar no Olimpo</em>.</h2>
+      <p class="end__lead">Comece pelo animal de vitrine do seu haras. Em uma semana ele tem laudo, ficha e QR code.</p>
+      <a class="btn btn--gold" href="mailto:contato@pegaso.com.br?subject=Quero%20conhecer%20o%20P%C3%A9gaso">FALAR COM O PÉGASO</a>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="foot__card">
+    <div class="foot__top">
+      <div class="foot__brand">
+        <p class="foot__logo">Pégaso</p>
+        <p class="foot__tag">Análise de marcha equina &amp; o Olimpo — o álbum virtual dos cavalos de elite.</p>
+      </div>
+      <a class="btn btn--gold" href="mailto:contato@pegaso.com.br?subject=Quero%20conhecer%20o%20P%C3%A9gaso">FALAR COM O PÉGASO</a>
+    </div>
+
+    <div class="foot__cols">
+      <nav class="foot__col" aria-labelledby="fc1"><p class="label" id="fc1">( PRODUTO )</p>
+        <ul><li><a href="#marcha">Análise de marcha</a></li><li><a href="#marcha">Laudo em PDF</a></li><li><a href="#planos">Valorização</a></li><li><a href="#faq">Perguntas frequentes</a></li></ul>
+      </nav>
+      <nav class="foot__col" aria-labelledby="fc2"><p class="label" id="fc2">( OLIMPO )</p>
+        <ul><li><a href="#olimpo">Ficha de campeão</a></li><li><a href="#olimpo">Pedigree</a></li><li><a href="#olimpo">QR code por animal</a></li><li><a href="#olimpo">Galeria de conquistas</a></li></ul>
+      </nav>
+      <nav class="foot__col" aria-labelledby="fc3"><p class="label" id="fc3">( HARAS )</p>
+        <ul><li><a href="#comparativo">Comparativo</a></li><li><a href="#contato">Implantação</a></li><li><a href="#contato">Suporte 1x1</a></li><li><a href="#contato">Privacidade e LGPD</a></li></ul>
+      </nav>
+    </div>
+
+    <div class="foot__base">
+      <span>© 2026 Pégaso</span>
+      <span>FEITO NO BRASIL, PARA O MANGALARGA MARCHADOR</span>
+    </div>
+  </div>
+</footer>
+
+<!-- app.js vem primeiro de propósito: scripts "defer" executam na ordem em que
+     aparecem, então isto faz o portão do haras começar a contar sem esperar o
+     download das bibliotecas. O restante da página só é montado no
+     DOMContentLoaded, que o navegador dispara depois de todos os "defer". -->
+<script src="js/app.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js" defer></script>
+</body>
+</html>
