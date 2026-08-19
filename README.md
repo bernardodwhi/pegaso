@@ -71,15 +71,21 @@ objeto**, num palco fixo (`#stage`) que atravessa a página inteira.
 ### Anatomia
 
 A silhueta segue proporções de cavalo de sela em formato "quadrado", com a
-altura da cernelha `H = 474`:
+altura da cernelha `H = 492` e o solo em `y = 850`:
 
 | medida | proporção |
 | --- | --- |
-| corpo (ponta da espádua → nádega) | ≈ H |
+| corpo (ponta da espádua → nádega) | 1,020 H |
 | solo → cotovelo | ≈ H/2 |
-| profundidade do tronco | ≈ H/2 |
-| cabeça | ≈ 0,40 H |
-| pescoço (nuca → cernelha) | ≈ 1,5 cabeças |
+| profundidade da cilha | ≈ H/2, o ponto mais fundo do ventre |
+| cabeça | ≈ 0,43 H |
+| pescoço (nuca → cernelha) | ≈ 1,65 cabeças, a **51°** da horizontal |
+
+O **porte** é o que distingue este animal de um cavalo de trabalho. A linha
+nuca→cernelha sobe a 51° (medido; era 17°, quase deitada), a crista é
+fortemente convexa, a cabeça é portada quase na vertical com o focinho acima
+da linha da cernelha, e a nuca é o ponto mais alto da silhueta em repouso. A
+cauda tem inserção alta e flui para cima e para trás, em lobos de chama.
 
 O traço decisivo é o **perfil dorsal em S**: cernelha em pico acima da linha do
 dorso, dorso curto e côncavo, garupa subindo de novo. É o que separa o cavalo do
@@ -92,7 +98,10 @@ curtas e cauda cheia de inserção alta.
 
 Os membros têm rig próprio: cada partícula guarda em que membro, segmento e
 posição interna vive, e a pose é recalculada a cada quadro por cinemática
-direta. A quartela é resolvida por IK contra a linha do solo, para o casco
+direta. A cabeça também é articulada: cada partícula do tronco carrega um peso
+de nuca, 1 na cabeça e nas orelhas, 0 no pescoço, com uma faixa de transição de
+~110px na fauce — na levade só a cabeça gira, em torno da nuca, para a face
+ficar próxima da vertical em vez de acompanhar rigidamente o giro do tronco. A quartela é resolvida por IK contra a linha do solo, para o casco
 assentar plano em vez de flutuar nos extremos do apoio.
 
 O ciclo é de **marcha** — quatro tempos, sem suspensão, apoio ocupando 62% do
@@ -113,9 +122,9 @@ monótona na rolagem, imune à ordem em que gatilhos disparam durante um salto.
 | --- | --- |
 | herói | marcha, à direita |
 | a marcha | grande e apagado atrás de tudo, pulsando no ritmo dos cascos |
-| Olimpo | as asas se abrem pena a pena, quando a ficha entra |
+| Olimpo | as asas se abrem pena a pena — coberteiras, secundárias e primárias em camadas — quando a ficha entra |
 | comparativo → FAQ | recuado e discreto, sem competir com os dados |
-| encerramento | empina, bate a asa uma vez, vira raio e se recompõe na constelação de Pégaso |
+| encerramento | levade colecionada (peso nos posteriores, anteriores recolhidos, nuca flexionada, asas plenas), bate a asa, vira raio e se recompõe na constelação de Pégaso |
 
 O encerramento é uma cena longa com o miolo *sticky*: dá espaço de rolagem sem
 um segundo pin de ScrollTrigger, que desincronizava com o pin da marcha.
@@ -128,8 +137,8 @@ um segundo pin de ScrollTrigger, que desincronizava com o pin da marcha.
   ao padrão do navegador, a seção da marcha completa o laudo ao entrar na tela
   e o letreiro fica estático.
 - **`prefers-reduced-motion: reduce`** → tudo estático: nenhum WebGL, um
-  emblema de Pégaso alado em traço fino dourado no lugar da nuvem, sem pin nem
-  scrub, e os contadores já no valor final.
+  emblema heráldico de Pégaso alado em traço fino dourado no lugar da nuvem,
+  sem pin nem scrub, e os contadores já no valor final.
 - **Guarda de quadro**: o buffer do palco pode render abaixo do tamanho em CSS
   (o CSS reamplia). Se a placa não sustenta 60fps ele encolhe até 60%; em GPU
   capaz volta sozinho à resolução cheia. O custo dominante é preenchimento, não

@@ -101,31 +101,41 @@
   }
 
   /* =======================================================
-     ( 01 ) ANATOMIA — CAVALO DE SELA, FORMATO "QUADRADO"
+     ( 01 ) ANATOMIA — PORTE IMPERIAL
      -------------------------------------------------------
-     Proporções de referência, com a altura da cernelha H = 468:
+     Proporções de cavalo de sela em formato "quadrado", com a
+     altura da cernelha H = 490 e o solo em y = 850:
        corpo (ponta da espádua → nádega) ≈ H     → formato quadrado
        solo → cotovelo ≈ H/2                     → membros longos
-       cabeça ≈ 0,40 H  ·  pescoço (nuca → cernelha) ≈ 1,5 cabeças
-       profundidade da cilha (cernelha → ventre) ≈ H/2, e o ventre
-       SOBE dali até o vazio: o ponto mais fundo é a cilha, não o meio
+       cabeça ≈ 0,40 H  ·  pescoço (nuca → cernelha) ≈ 1,65 cabeças
+       profundidade da cilha ≈ H/2, e o ventre SOBE dali até o
+       vazio: o ponto mais fundo é a cilha, não o meio.
      A cernelha é um pico acima da linha do dorso, o dorso é curto e
      levemente côncavo e a garupa sobe de novo: é esse "S" do perfil
      dorsal que separa o cavalo do asinino, cujo dorso é plano.
+
+     O PORTE é o que muda aqui: a linha nuca→cernelha sobe a 52° da
+     horizontal (eram 17°, quase deitada — porte de animal de tiro),
+     a crista é fortemente convexa, e a cabeça é portada quase na
+     vertical, com o focinho acima da linha da cernelha. A nuca é o
+     ponto mais alto da silhueta em repouso.
      ======================================================= */
   var ANAT = {
-    W: 1000, H: 700, GROUND: 658,
+    W: 1000, H: 900, GROUND: 850,
     // membros: origem, comprimentos dos segmentos e larguras nas juntas
-    fore: { len: [138, 104, 34], w: [52, 28, 20, 16] },
-    hind: { len: [154, 110, 34], w: [88, 32, 21, 16] },
+    fore: { len: [142, 108, 35], w: [54, 29, 21, 17] },
+    hind: { len: [159, 114, 35], w: [91, 33, 22, 17] },
     // A origem fica DENTRO do tronco (escápula / coxa), não na borda:
     // assim o topo do membro nunca abre fenda contra a linha do peito.
     // [perto, longe] — o pequeno desvio sugere profundidade
-    foreAt: [[358, 386], [334, 392]],
-    hindAt: [[736, 372], [764, 370]],
+    foreAt: [[382, 569], [362, 575]],
+    hindAt: [[768, 554], [797, 552]],
     // ângulos de repouso de cada cadeia (0 = a pino, positivo = à frente)
     foreRest: [0.02, 0.00, 0.50],
-    hindRest: [-0.30, 0.16, 0.50]
+    hindRest: [-0.30, 0.16, 0.50],
+    // Levade: peso nos posteriores, anteriores recolhidos ao alto.
+    foreLevade: [0.95, -0.75, -0.30],
+    hindLevade: [0.20, 0.70, 0.15]
   };
 
   // Cadeia cinemática direta: devolve as posições das juntas.
@@ -187,20 +197,29 @@
 
   // Juntas de um membro (0..3) na fase global t do ciclo. `bob` desloca
   // a origem junto com o tronco — sem isso o membro descola do corpo.
-  function legJoints(i, t, bob) {
+  // `rear` (0..1) mistura a pose de levade da apoteose.
+  function legJoints(i, t, bob, rear) {
     var p = (t + LEG_PHASE[i]) % 1;
     if (p < 0) p += 1;
     var fore = i < 2;
     var cfg = fore ? ANAT.fore : ANAT.hind;
     var a0 = (fore ? ANAT.foreAt : ANAT.hindAt)[i % 2];
     var at = [a0[0], a0[1] + (bob || 0)];
-    var pts = chain(at, cfg.len, fore ? foreAngles(p) : hindAngles(p));
-    if (p < STANCE) plant(pts, cfg.len[2], ANAT.GROUND);
+    var ang = fore ? foreAngles(p) : hindAngles(p);
+    var r = rear || 0;
+    if (r > 0) {
+      var lv = fore ? ANAT.foreLevade : ANAT.hindLevade;
+      ang = [ang[0] + (lv[0] - ang[0]) * r,
+             ang[1] + (lv[1] - ang[1]) * r,
+             ang[2] + (lv[2] - ang[2]) * r];
+    }
+    var pts = chain(at, cfg.len, ang);
+    if (p < STANCE && r < 0.35) plant(pts, cfg.len[2], ANAT.GROUND);
     return { pts: pts, w: cfg.w, phase: p };
   }
 
   // Oscilação vertical do tronco: dois ciclos por passada, discreta.
-  function bodyBob(t) { return Math.sin(t * Math.PI * 4) * 3.2; }
+  function bodyBob(t) { return Math.sin(t * Math.PI * 4) * 3.3; }
 
   /* --- desenho da silhueta -------------------------------- */
 
@@ -218,6 +237,19 @@
     ctx.beginPath(); ctx.arc(b[0], b[1], wb / 2, 0, Math.PI * 2); ctx.fill();
   }
 
+  // Lâmina afilada: serve de pena e de lobo de chama da cauda.
+  function blade(ctx, a, b, w) {
+    var dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+    var nx = -dy / L, ny = dx / L;
+    ctx.beginPath();
+    ctx.moveTo(a[0] + nx * w / 2, a[1] + ny * w / 2);
+    ctx.quadraticCurveTo(a[0] + dx * 0.55 + nx * w * 0.42, a[1] + dy * 0.55 + ny * w * 0.42, b[0], b[1]);
+    ctx.quadraticCurveTo(a[0] + dx * 0.55 - nx * w * 0.42, a[1] + dy * 0.55 - ny * w * 0.42,
+                         a[0] - nx * w / 2, a[1] - ny * w / 2);
+    ctx.closePath();
+    ctx.fill();
+  }
+
   function drawLeg(ctx, leg) {
     var p = leg.pts, w = leg.w;
     for (var i = 0; i < 3; i++) bone(ctx, p[i], p[i + 1], w[i], w[i + 1]);
@@ -225,32 +257,29 @@
     var h = p[3], d = [p[3][0] - p[2][0], p[3][1] - p[2][1]];
     var L = Math.hypot(d[0], d[1]) || 1, ang = Math.atan2(d[1], d[0]);
     ctx.beginPath();
-    ctx.ellipse(h[0] - d[0] / L * 4, h[1] - d[1] / L * 4, 13, 9, ang, 0, Math.PI * 2);
+    ctx.ellipse(h[0] - d[0] / L * 4, h[1] - d[1] / L * 4, 14, 9, ang, 0, Math.PI * 2);
     ctx.fill();
   }
 
   // Tronco, pescoço e cabeça — um só contorno fechado.
   function drawTrunk(ctx) {
     ctx.beginPath();
-    ctx.moveTo(96, 258);
-    ctx.bezierCurveTo(128, 200, 158, 150, 190, 104);   // chanfro
-    ctx.bezierCurveTo(252, 98, 330, 132, 392, 202);    // crista arqueada
-    ctx.bezierCurveTo(408, 196, 422, 176, 448, 184);   // CERNELHA: pico nítido
-    ctx.bezierCurveTo(496, 200, 530, 230, 578, 238);   // dorso curto e côncavo
-    ctx.bezierCurveTo(624, 244, 664, 224, 700, 206);   // lombo subindo
-    ctx.bezierCurveTo(728, 197, 750, 200, 768, 214);   // garupa longa
-    ctx.bezierCurveTo(778, 221, 792, 246, 796, 286);   // nádega
-    ctx.bezierCurveTo(800, 330, 788, 366, 762, 392);   // ísquio
-    ctx.bezierCurveTo(742, 400, 716, 396, 694, 392);   // vazio: recolhimento do flanco
-    ctx.bezierCurveTo(660, 404, 610, 416, 552, 422);   // barril, com curvatura
-    ctx.bezierCurveTo(488, 428, 412, 430, 358, 427);   // cilha: ponto mais fundo
-    ctx.bezierCurveTo(332, 420, 314, 400, 308, 374);   // peito
-    ctx.bezierCurveTo(300, 334, 284, 288, 262, 234);   // pescoço, borda inferior
-    ctx.bezierCurveTo(256, 220, 248, 208, 242, 198);   // garganta
-    ctx.bezierCurveTo(240, 224, 234, 248, 220, 266);   // ganacha
-    ctx.bezierCurveTo(194, 286, 158, 298, 126, 299);   // mandíbula
-    ctx.bezierCurveTo(106, 299, 92, 288, 90, 272);     // focinho, base
-    ctx.bezierCurveTo(89, 264, 92, 259, 96, 258);
+    ctx.moveTo(204, 306);
+    ctx.bezierCurveTo(222, 236, 248, 166, 271, 105);   // chanfro quase vertical
+    ctx.bezierCurveTo(352, 110, 410, 238, 438, 380);   // CRISTA fortemente arqueada
+    ctx.bezierCurveTo(452, 372, 466, 350, 490, 358);   // CERNELHA: pico nítido
+    ctx.bezierCurveTo(540, 384, 582, 414, 628, 420);   // dorso curto e côncavo
+    ctx.bezierCurveTo(674, 426, 712, 400, 748, 382);   // lombo subindo
+    ctx.bezierCurveTo(776, 372, 800, 376, 816, 392);   // garupa longa
+    ctx.bezierCurveTo(826, 404, 834, 430, 836, 464);   // nádega
+    ctx.bezierCurveTo(840, 508, 830, 546, 808, 570);   // ísquio
+    ctx.bezierCurveTo(786, 588, 762, 592, 738, 584);   // soldra e vazio
+    ctx.bezierCurveTo(698, 596, 646, 606, 588, 610);   // barril, com curvatura
+    ctx.bezierCurveTo(520, 614, 440, 616, 380, 612);   // cilha: ponto mais fundo
+    ctx.bezierCurveTo(354, 602, 338, 582, 334, 556);   // peito
+    ctx.bezierCurveTo(354, 450, 324, 326, 300, 262);   // pescoço, com a fauce escavada
+    ctx.bezierCurveTo(292, 296, 268, 320, 236, 336);   // mandíbula
+    ctx.bezierCurveTo(216, 336, 204, 324, 204, 306);   // focinho
     ctx.closePath();
     ctx.fill();
   }
@@ -259,7 +288,7 @@
   function drawTrunkOnly(ctx) { drawTrunk(ctx); drawEars(ctx); }
 
   function drawEars(ctx) {
-    [[[180, 112], [166, 60], [198, 100]], [[204, 102], [214, 52], [228, 104]]]
+    [[[258, 116], [246, 48], [282, 102]], [[286, 102], [306, 46], [318, 116]]]
       .forEach(function (e) {
         ctx.beginPath();
         ctx.moveTo(e[0][0], e[0][1]);
@@ -270,40 +299,43 @@
       });
   }
 
-  // Crina: um espessamento suave da crista, com a borda superior
-  // ondulada. Decisão deliberada — mechas destacadas na silhueta
-  // sempre leem como espinhos; o vento vive na ANIMAÇÃO das
-  // partículas (onda que corre da nuca à cernelha), não no contorno.
+  // Crina: massa volumosa sobre a crista arqueada, com a borda externa
+  // varrida para trás. Decisão mantida do ato anterior — mechas
+  // destacadas na silhueta sempre leem como espinhos; o vento vive na
+  // ANIMAÇÃO das partículas, numa onda que corre da nuca à cernelha.
   function drawMane(ctx, sway) {
     var s = sway || 0;
     ctx.beginPath();
-    ctx.moveTo(192, 98);
-    ctx.bezierCurveTo(214, 74 - s * 2, 254, 70 - s * 3, 286, 84 - s * 3);
-    ctx.bezierCurveTo(316, 106 - s * 2, 350, 142, 384, 192);
-    ctx.lineTo(392, 204);
-    ctx.bezierCurveTo(336, 144, 258, 108, 190, 112);                // volta por DENTRO da crista
+    ctx.moveTo(272, 84);
+    ctx.bezierCurveTo(318, 76 - s * 2, 366, 98 - s * 3, 400, 146 - s * 2);
+    ctx.bezierCurveTo(428, 186, 446, 244, 452, 306);
+    ctx.bezierCurveTo(456, 340, 452, 366, 444, 384);
+    ctx.lineTo(438, 384);
+    ctx.bezierCurveTo(388, 250, 330, 122, 262, 118);   // volta ~20px por DENTRO da crista
     ctx.closePath();
     ctx.fill();
-    // topete curto entre as orelhas
+    // topete: enraizado na nuca e sempre sobreposto ao chanfro
     ctx.beginPath();
-    ctx.moveTo(196, 98);
-    ctx.quadraticCurveTo(180, 114, 172, 142);
-    ctx.quadraticCurveTo(186, 120, 212, 106);
+    ctx.moveTo(280, 96);
+    ctx.lineTo(222, 196);
+    ctx.lineTo(296, 120);
     ctx.closePath();
     ctx.fill();
   }
 
-  // Cauda de inserção alta: nasce dentro da garupa, quase no nível
-  // dela, e desce cheia até afinar na ponta. Um contorno só — mechas
-  // desenhadas ao lado abrem frestas escuras e viram leque listrado.
-  var TAIL_SPINE = [[732, 226], [806, 222], [858, 262], [900, 332], [926, 414], [938, 494], [934, 554]];
-  var TAIL_W = [44, 52, 50, 42, 32, 21, 8];
+  // Cauda de inserção alta, empanachada: sai no nível da garupa e flui
+  // PARA CIMA e para trás, com lobos de chama na ponta. Um contorno só
+  // no corpo principal — mechas desenhadas ao lado abrem frestas
+  // escuras e viram leque listrado; os lobos nascem DENTRO da massa.
+  var TAIL_SPINE = [[764, 404], [846, 372], [896, 332], [934, 278], [956, 216], [960, 158]];
+  var TAIL_W = [64, 68, 74, 64, 44, 18];
+  var TAIL_LOBES = [[[896, 336], [978, 262], 34], [[926, 286], [972, 176], 30], [[880, 352], [964, 300], 30]];
 
   function drawTail(ctx, sway) {
     var s = sway || 0, n = TAIL_SPINE.length;
     function at(i) {
       var k = i / (n - 1), p = TAIL_SPINE[i];
-      return [p[0] + s * 12 * k * k, p[1] - s * 5 * k * k];
+      return [p[0] + s * 12 * k * k, p[1] - s * 6 * k * k];
     }
     var left = [], right = [];
     for (var i = 0; i < n; i++) {
@@ -325,18 +357,21 @@
     }
     ctx.closePath();
     ctx.fill();
+    TAIL_LOBES.forEach(function (l) {
+      blade(ctx, [l[0][0] + s * 8, l[0][1] - s * 4], [l[1][0] + s * 14, l[1][1] - s * 8], l[2]);
+    });
   }
 
   // Silhueta completa. `t` é a fase do ciclo de marcha (0..1).
-  function drawHorse(ctx, W, H, t) {
+  function drawHorse(ctx, W, H, t, rear) {
     var phase = t || 0;
     ctx.save();
     ctx.scale(W / ANAT.W, H / ANAT.H);
     ctx.fillStyle = '#fff';
     var bob = bodyBob(phase);
     // membros do lado oposto primeiro: ficam atrás na leitura
-    drawLeg(ctx, legJoints(1, phase));
-    drawLeg(ctx, legJoints(3, phase));
+    drawLeg(ctx, legJoints(1, phase, bob, rear));
+    drawLeg(ctx, legJoints(3, phase, bob, rear));
     ctx.save();
     ctx.translate(0, bob);
     drawTail(ctx, Math.sin(phase * Math.PI * 2) * 1.2);
@@ -344,78 +379,52 @@
     drawEars(ctx);
     drawMane(ctx, Math.sin(phase * Math.PI * 2 + 0.7) * 1.2);
     ctx.restore();
-    drawLeg(ctx, legJoints(0, phase));
-    drawLeg(ctx, legJoints(2, phase));
+    drawLeg(ctx, legJoints(0, phase, bob, rear));
+    drawLeg(ctx, legJoints(2, phase, bob, rear));
     ctx.restore();
   }
 
-  // Amostra a silhueta e devolve listas de pontos internos e de contorno.
-  function sampleSilhouette() {
-    var W = 1000, H = 700;
-    var cv = document.createElement('canvas');
-    cv.width = W; cv.height = H;
-    var ctx = cv.getContext('2d');
-    drawHorse(ctx, W, H);
-    var data = ctx.getImageData(0, 0, W, H).data;
-    var at = function (x, y) {
-      if (x < 0 || y < 0 || x >= W || y >= H) return 0;
-      return data[(y * W + x) * 4 + 3];
-    };
-    var inside = [], edge = [], step = 2, e = 4;
-    for (var y = 0; y < H; y += step) {
-      for (var x = 0; x < W; x += step) {
-        if (at(x, y) < 128) continue;
-        var isEdge = at(x + e, y) < 128 || at(x - e, y) < 128 || at(x, y + e) < 128 || at(x, y - e) < 128;
-        (isEdge ? edge : inside).push(x, y);
-      }
-    }
-    return { inside: inside, edge: edge, W: W, H: H };
-  }
+  // A asa sobe muito acima da linha do dorso — por isso vive numa tela
+  // própria, mais alta, deslocada por OY. Três camadas legíveis no
+  // vocabulário de partículas: coberteiras na raiz, secundárias no
+  // antebraço e rêmiges primárias longas a partir do carpo. Do encaixe
+  // à ponta mais distante ela mede ~1,09 do comprimento do corpo.
+  var WING = { W: 1250, H: 1450, OY: 500, ROOT: [474, 400] };
 
-  /* =======================================================
-     ( 02 ) ASA — geometria das asas de Pégaso
-     ======================================================= */
-  // A asa precisa subir MUITO acima da linha do dorso, senão o leque se
-  // confunde com a garupa e a cauda. Por isso ela vive numa tela própria,
-  // mais alta, deslocada por OY — o espaço de 700px do cavalo não cabe
-  // uma envergadura que se erga de verdade.
-  var WING = { W: 1100, H: 1120, OY: 430, ROOT: [432, 216] };
-
-  var WING_FEATHERS = [
-    [[470, 150], [498, 336], 30], [[520, 68], [598, 306], 30],
-    [[574, -12], [688, 258], 29], [[628, -92], [772, 196], 28],
-    [[682, -168], [842, 124], 26], [[732, -228], [890, 44], 24],
-    [[778, -278], [922, -44], 21]
+  // [raiz, ponta, largura]
+  // camada intermediária: coberteiras maiores, entre a massa da raiz e
+  // as secundárias — é o que faz as três camadas se lerem separadas
+  var WING_COVERT = [
+    [[540, 200], [626, 266], 26], [[560, 166], [656, 222], 26],
+    [[582, 132], [686, 178], 25], [[604, 98], [714, 134], 24],
+    [[628, 64], [740, 88], 23]
+  ];
+  var WING_SECOND = [
+    [[526, 240], [667, 367], 30], [[542, 206], [708, 318], 30],
+    [[558, 174], [747, 266], 29], [[578, 140], [785, 207], 28],
+    [[600, 106], [821, 145], 27], [[622, 72], [850, 80], 26]
+  ];
+  var WING_PRIMARY = [
+    [[690, -40], [844, -286], 34], [[696, -30], [912, -238], 34],
+    [[702, -16], [966, -169], 33], [[706, 0], [999, -84], 32],
+    [[706, 18], [1004, 8], 30], [[702, 38], [984, 98], 28],
+    [[694, 58], [940, 178], 26]
   ];
 
   function drawWing(ctx) {
     ctx.save();
     ctx.translate(0, WING.OY);
     ctx.fillStyle = '#fff';
-    // membrana: sobe da espádua, arqueia para trás e para cima
+    // coberteiras: massa arredondada na raiz, colada ao bordo de ataque
     ctx.beginPath();
-    ctx.moveTo(430, 232);
-    ctx.bezierCurveTo(474, 120, 566, -30, 682, -150);
-    ctx.bezierCurveTo(736, -206, 790, -262, 812, -276);
-    ctx.bezierCurveTo(830, -286, 838, -268, 818, -232);
-    ctx.bezierCurveTo(776, -156, 706, -54, 628, 44);
-    ctx.bezierCurveTo(556, 134, 486, 214, 442, 254);
-    ctx.bezierCurveTo(418, 274, 412, 262, 430, 232);
+    ctx.moveTo(470, 412);
+    ctx.bezierCurveTo(492, 292, 554, 138, 610, 56);
+    ctx.bezierCurveTo(664, 92, 690, 176, 668, 258);
+    ctx.bezierCurveTo(644, 348, 580, 430, 522, 480);
+    ctx.bezierCurveTo(494, 504, 462, 462, 470, 412);
     ctx.closePath();
     ctx.fill();
-    // rêmiges: lâminas afiladas que ultrapassam a membrana
-    WING_FEATHERS.forEach(function (f) {
-      var a = f[0], b = f[1], w = f[2];
-      var dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
-      var nx = -dy / L, ny = dx / L;
-      ctx.beginPath();
-      ctx.moveTo(a[0] + nx * w / 2, a[1] + ny * w / 2);
-      ctx.quadraticCurveTo(a[0] + dx * 0.55 + nx * w * 0.42, a[1] + dy * 0.55 + ny * w * 0.42, b[0], b[1]);
-      ctx.quadraticCurveTo(a[0] + dx * 0.55 - nx * w * 0.42, a[1] + dy * 0.55 - ny * w * 0.42,
-                           a[0] - nx * w / 2, a[1] - ny * w / 2);
-      ctx.closePath();
-      ctx.fill();
-    });
+    WING_COVERT.concat(WING_SECOND, WING_PRIMARY).forEach(function (f) { blade(ctx, f[0], f[1], f[2]); });
     ctx.restore();
   }
 
@@ -465,9 +474,9 @@
   function boltMask() {
     return maskOf(function (ctx) {
       ctx.beginPath();
-      ctx.moveTo(592, 24); ctx.lineTo(352, 356); ctx.lineTo(496, 356);
-      ctx.lineTo(400, 682); ctx.lineTo(762, 270); ctx.lineTo(592, 270);
-      ctx.lineTo(760, 24);
+      ctx.moveTo(592, 40); ctx.lineTo(352, 466); ctx.lineTo(496, 466);
+      ctx.lineTo(400, 876); ctx.lineTo(762, 346); ctx.lineTo(592, 346);
+      ctx.lineTo(760, 40);
       ctx.closePath(); ctx.fill();
     }, ANAT.W, ANAT.H);
   }
@@ -482,7 +491,7 @@
   var PEG_EDGES = [[0, 1], [1, 3], [3, 2], [2, 0], [2, 4], [4, 5], [5, 6], [0, 7], [7, 9], [9, 10], [7, 8]];
 
   function starXY(i) {
-    return [120 + PEG_STARS[i][0] * 760, 60 + PEG_STARS[i][1] * 560];
+    return [120 + PEG_STARS[i][0] * 760, 90 + PEG_STARS[i][1] * 720];
   }
 
   function constellationPoint() {
@@ -504,10 +513,28 @@
   /* =======================================================
      ( 05 ) NUVEM: CORPO AMOSTRADO + MEMBROS COM ESQUELETO
      ======================================================= */
+  // Colecionamento: na levade o pescoço já fica vertical pelo próprio giro
+  // do tronco — o que falta é a FLEXÃO NA NUCA. Só a cabeça gira, em torno
+  // da nuca, com uma faixa de transição de ~110px na fauce para a máscara
+  // única do tronco não abrir costura. O corte vai da nuca à garganta.
+  var POLL = [271, 105], THROAT = [300, 262];
+
+  function headWeight(px, py) {
+    var cx = THROAT[0] - POLL[0], cy = THROAT[1] - POLL[1];
+    var L = Math.hypot(cx, cy);
+    var d = ((px - POLL[0]) * cy - (py - POLL[1]) * cx) / L;  // <0 = lado da cabeça
+    var side = clamp((55 - d) / 110, 0, 1);
+    // e limitada ao alcance da cabeça, senão o corte prolongado arrastaria
+    // a borda dianteira do pescoço inteiro
+    var near = clamp((300 - Math.hypot(px - POLL[0], py - POLL[1])) / 65, 0, 1);
+    var w = side * near;
+    return w * w * (3 - 2 * w);
+  }
+
   var PART = { BODY: 0, MANE: 1, TAIL: 2, LEG: 3 };
   var SCALE = 0.118;
 
-  function toWorld(x, y) { return [(x - 500) * SCALE, -(y - 350) * SCALE]; }
+  function toWorld(x, y) { return [(x - ANAT.W / 2) * SCALE, -(y - ANAT.H / 2) * SCALE]; }
 
   // Sementes dos membros: cada partícula guarda em que membro, em que
   // segmento e onde dentro dele ela vive. A pose recalcula só isso.
@@ -556,6 +583,7 @@
     var aSeed = new Float32Array(count);
     var aPart = new Float32Array(count);
     var aRoot = new Float32Array(count);
+    var aHead = new Float32Array(count);
 
     var GOLD = [0.788, 0.635, 0.153], CHAMP = [0.902, 0.784, 0.478], BRONZE = [0.549, 0.416, 0.184];
     var seeds = legSeeds(nLeg);
@@ -580,13 +608,14 @@
       position[i * 3] = w[0];
       position[i * 3 + 1] = w[1];
       position[i * 3 + 2] = (Math.random() * 2 - 1) * (isEdge ? 3.4 : 8.4);
+      aHead[i] = headWeight(px, py);
       if (i < nBody) { aPart[i] = PART.BODY; aRoot[i] = 0; }
       else if (i < nBody + nMane) {
         aPart[i] = PART.MANE;
-        aRoot[i] = clamp((px - 190) / 210, 0, 1);
+        aRoot[i] = clamp((px - 240) / 215, 0, 1);
       } else {
         aPart[i] = PART.TAIL;
-        aRoot[i] = clamp((px - 740) / 200, 0, 1);
+        aRoot[i] = clamp((px - 780) / 200, 0, 1);
       }
       paint(i, isEdge, false);
     }
@@ -614,7 +643,7 @@
     return {
       count: count, nSampled: nSampled, nLeg: nLeg, seeds: seeds,
       position: position, aColor: aColor, aSize: aSize, aSeed: aSeed,
-      aPart: aPart, aRoot: aRoot, aBolt: aBolt, aStar: aStar
+      aPart: aPart, aRoot: aRoot, aHead: aHead, aBolt: aBolt, aStar: aStar
     };
   }
 
@@ -643,7 +672,7 @@
       aFold[i * 3 + 1] = root[1] + (Math.random() - 0.5) * 4;
       aFold[i * 3 + 2] = (Math.random() * 2 - 1) * 3;
       // ordem de revelação: da raiz para a ponta, pena a pena
-      aOrder[i] = clamp(Math.hypot(px - WING.ROOT[0], py - WING.ROOT[1]) / 620, 0, 1);
+      aOrder[i] = clamp(Math.hypot(px - WING.ROOT[0], py - WING.ROOT[1]) / 760, 0, 1);
       var t = Math.random();
       var c = isEdge ? CHAMP : [lerp(GOLD[0], CHAMP[0], t), lerp(GOLD[1], CHAMP[1], t), lerp(GOLD[2], CHAMP[2], t)];
       aColor[i * 3] = c[0]; aColor[i * 3 + 1] = c[1]; aColor[i * 3 + 2] = c[2];
@@ -659,12 +688,18 @@
      ======================================================= */
   var HORSE_VERT = [
     'attribute float aSize; attribute float aSeed; attribute float aPart; attribute float aRoot;',
+    'attribute float aHead;',
     'attribute vec3 aColor; attribute vec3 aBolt; attribute vec3 aStar;',
     'uniform float uTime; uniform float uPixel; uniform float uScale; uniform float uBob;',
     'uniform float uSway; uniform float uBolt; uniform float uStar; uniform float uDim; uniform float uPulse;',
+    'uniform float uCollect; uniform vec2 uPoll;',
     'varying vec3 vColor; varying float vAlpha;',
     'void main(){',
     '  vec3 p = position;',
+    '  // flexão na nuca: só a cabeça gira, e antes do giro do tronco',
+    '  float ca = uCollect * aHead;',
+    '  vec2 hr = p.xy - uPoll;',
+    '  p.xy = uPoll + vec2(hr.x * cos(ca) - hr.y * sin(ca), hr.x * sin(ca) + hr.y * cos(ca));',
     '  float mane = step(0.5, aPart) * step(aPart, 1.5);',
     '  float tail = step(1.5, aPart) * step(aPart, 2.5);',
     '  float leg  = step(2.5, aPart);',
@@ -774,11 +809,13 @@
     geo.setAttribute('aSeed', attr(cloud.aSeed, 1));
     geo.setAttribute('aPart', attr(cloud.aPart, 1));
     geo.setAttribute('aRoot', attr(cloud.aRoot, 1));
+    geo.setAttribute('aHead', attr(cloud.aHead, 1));
     geo.attributes.position.setUsage(THREE.DynamicDrawUsage);
 
     var U = {
       uTime: { value: 0 }, uPixel: { value: DPR }, uScale: { value: 1 }, uBob: { value: 0 },
-      uSway: { value: 1 }, uBolt: { value: 0 }, uStar: { value: 0 }, uDim: { value: 1 }, uPulse: { value: 0 }
+      uSway: { value: 1 }, uBolt: { value: 0 }, uStar: { value: 0 }, uDim: { value: 1 }, uPulse: { value: 0 },
+      uCollect: { value: 0 }, uPoll: { value: new THREE.Vector2() }
     };
     var horsePts = new THREE.Points(geo, new THREE.ShaderMaterial({
       uniforms: U, vertexShader: HORSE_VERT, fragmentShader: POINT_FRAG,
@@ -793,6 +830,8 @@
     wgeo.setAttribute('aSize', attr(wings.aSize, 1));
     wgeo.setAttribute('aSeed', attr(wings.aSeed, 1));
     wgeo.setAttribute('aOrder', attr(wings.aOrder, 1));
+    var pollW = toWorld(POLL[0], POLL[1]);
+    U.uPoll.value.set(pollW[0], pollW[1]);
     var rootW = toWorld(WING.ROOT[0], WING.ROOT[1]);
     var WU = {
       uTime: U.uTime, uPixel: U.uPixel, uScale: U.uScale, uBob: U.uBob,
@@ -839,7 +878,12 @@
     /* --- estado dirigido pela rolagem ------------------- */
     var S = { x: 0.30, y: 0.03, scale: 1, gait: 1, sway: 1, wing: 0, dim: 1, pulse: 0, rear: 0, beat: 0, bolt: 0, star: 0 };
     var T = {}; for (var kk in S) T[kk] = S[kk];
-    if (window.PEGASO) { window.PEGASO.S = S; window.PEGASO.T = T; window.PEGASO.counts = { cloud: cloud.count, legs: cloud.nLeg, wings: wings.count }; }
+    if (window.PEGASO) {
+      window.PEGASO.S = S; window.PEGASO.T = T;
+      window.PEGASO.counts = { cloud: cloud.count, legs: cloud.nLeg, wings: wings.count };
+      window.PEGASO.force = function (o) { for (var k in o) { T[k] = o[k]; S[k] = o[k]; } };
+      window.PEGASO.setCollect = function (v) { COLLECT = v; };
+    }
 
     // Cada cena entra quando o topo do seu elemento cruza uma linha da
     // viewport, e vale a ÚLTIMA cena cruzada. É monótono na rolagem e
@@ -849,14 +893,14 @@
     var SCENES = [
       ['#inicio', 0.95, { x: 0.30, y: 0.03, scale: 1.00, gait: 1.0, wing: 0, dim: 1.00, pulse: 0 }],
       ['.gait', 0.68, { x: 0.02, y: 0.02, scale: 1.16, gait: 1.0, wing: 0, dim: 0.30, pulse: 1 }],
-      ['#olimpo', 0.88, { x: 0.55, y: 0.28, scale: 0.80, gait: 0.5, wing: 1, dim: 0.95, pulse: 0 }],
+      ['#olimpo', 0.88, { x: 0.56, y: 0.42, scale: 0.84, gait: 0.5, wing: 1, dim: 0.95, pulse: 0 }],
       ['.gallery', 0.60, { x: 0.36, y: 0.06, scale: 0.56, gait: 0.4, wing: 1, dim: 0.22, pulse: 0 }],
       ['#comparativo', 0.68, { x: 0.37, y: 0.06, scale: 0.54, gait: 0.4, wing: 1, dim: 0.20, pulse: 0 }],
       ['#planos', 0.68, { x: -0.38, y: 0.06, scale: 0.52, gait: 0.4, wing: 1, dim: 0.17, pulse: 0 }],
       ['.creds', 0.68, { x: 0.38, y: 0.04, scale: 0.52, gait: 0.4, wing: 1, dim: 0.17, pulse: 0 }],
       ['.says', 0.68, { x: -0.37, y: 0.04, scale: 0.54, gait: 0.4, wing: 1, dim: 0.17, pulse: 0 }],
       ['#faq', 0.68, { x: 0.37, y: 0.02, scale: 0.58, gait: 0.4, wing: 1, dim: 0.19, pulse: 0 }],
-      ['#contato', 0.80, { x: 0.20, y: 0.04, scale: 1.02, gait: 0.2, wing: 1, dim: 0.72, pulse: 0 }]
+      ['#contato', 0.80, { x: 0.60, y: 0.10, scale: 0.88, gait: 0.2, wing: 1, dim: 0.95, pulse: 0 }]
     ];
     var sceneEls = [];
     SCENES.forEach(function (sc) { var el = $(sc[0]); if (el) sceneEls.push({ el: el, line: sc[1], v: sc[2] }); });
@@ -880,16 +924,18 @@
           onUpdate: function (self) {
             var p = self.progress;
             var st = clamp((p - 0.70) / 0.22, 0, 1);
-            T.rear = clamp(p / 0.18, 0, 1) * (1 - clamp((p - 0.34) / 0.14, 0, 1));
+            T.rear = clamp(p / 0.18, 0, 1) * (1 - clamp((p - 0.44) / 0.16, 0, 1));
             T.beat = Math.sin(clamp((p - 0.16) / 0.20, 0, 1) * Math.PI);
             T.bolt = clamp((p - 0.44) / 0.16, 0, 1);   // fecha em 0,60 e segura
             T.star = st;
             T.gait = 0.20 * (1 - clamp(p / 0.18, 0, 1));
-            T.x = 0.20 * (1 - clamp((p - 0.38) / 0.22, 0, 1));
-            T.y = 0.04 - st * 0.03;
+            // girar em torno do casco posterior desloca o conjunto para a
+            // direita; a posição compensa para a levade ficar centrada
+            T.x = (0.60 - 0.26 * T.rear) * (1 - clamp((p - 0.44) / 0.22, 0, 1));
+            T.y = 0.10 - st * 0.08;
             // a constelação cresce e emoldura o manifesto
             T.scale = 1.02 + st * 1.30;
-            T.dim = 0.72 + 0.28 * clamp((p - 0.58) / 0.22, 0, 1);
+            T.dim = 0.95 + 0.05 * clamp((p - 0.58) / 0.22, 0, 1);
           }
         };
         ScrollTrigger.create(Object.assign({ trigger: end, start: 'top top', end: 'bottom bottom' }, conf));
@@ -911,8 +957,8 @@
       vh = 2 * Math.tan(20 * Math.PI / 180) * camera.position.z;
       vw = vh * camera.aspect;
       var span = ANAT.W * SCALE;                       // largura do cavalo em unidades
-      var want = camera.aspect < 0.9 ? 0.86 : 0.46;    // fração da largura da tela
-      baseScale = Math.min(vw * want / span, vh * 0.62 / (ANAT.H * SCALE));
+      var want = camera.aspect < 0.9 ? 0.86 : 0.44;    // fração da largura da tela
+      baseScale = Math.min(vw * want / span, vh * 0.72 / (ANAT.H * SCALE));
       // Em tela estreita o Pégaso ocupa quase toda a largura e fica ATRÁS
       // do texto: precisa recuar bastante para não disputar a leitura.
       dimFactor = w < 900 ? 0.42 : 1;
@@ -925,9 +971,9 @@
 
     /* --- membros por esqueleto -------------------------- */
     var posArr = geo.attributes.position.array, base3 = cloud.nSampled * 3;
-    function updateLegs(phase, bob) {
-      var ch = [legJoints(0, phase, bob), legJoints(1, phase, bob),
-                legJoints(2, phase, bob), legJoints(3, phase, bob)];
+    function updateLegs(phase, bob, rear) {
+      var ch = [legJoints(0, phase, bob, rear), legJoints(1, phase, bob, rear),
+                legJoints(2, phase, bob, rear), legJoints(3, phase, bob, rear)];
       for (var i = 0; i < cloud.nLeg; i++) {
         var s = i * 4, c = ch[cloud.seeds[s]], seg = cloud.seeds[s + 1];
         var t = cloud.seeds[s + 2], u = cloud.seeds[s + 3];
@@ -935,8 +981,8 @@
         var dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
         var wd = (c.w[seg] + (c.w[seg + 1] - c.w[seg]) * t) * u;
         var j = base3 + i * 3;
-        posArr[j] = ((a[0] + dx * t) - dy / L * wd - 500) * SCALE;
-        posArr[j + 1] = -((a[1] + dy * t) + dx / L * wd - 350) * SCALE;
+        posArr[j] = ((a[0] + dx * t) - dy / L * wd - ANAT.W / 2) * SCALE;
+        posArr[j + 1] = -((a[1] + dy * t) + dx / L * wd - ANAT.H / 2) * SCALE;
       }
       geo.attributes.position.updateRange.offset = base3;
       geo.attributes.position.updateRange.count = cloud.nLeg * 3;
@@ -949,8 +995,8 @@
     function spawnDust(hoof) {
       for (var n = 0; n < 9; n++) {
         var i = dCur = (dCur + 1) % DUST;
-        dPos[i * 3] = (hoof[0] - 500) * SCALE + (Math.random() - 0.5) * 1.5;
-        dPos[i * 3 + 1] = -(hoof[1] - 350) * SCALE;
+        dPos[i * 3] = (hoof[0] - ANAT.W / 2) * SCALE + (Math.random() - 0.5) * 1.5;
+        dPos[i * 3 + 1] = -(hoof[1] - ANAT.H / 2) * SCALE;
         dVel[i * 2] = (0.6 + Math.random() * 1.6) * 2.2;
         dVel[i * 2 + 1] = (0.4 + Math.random()) * 1.9;
         dLife[i] = 1;
@@ -974,7 +1020,8 @@
     var t0 = performance.now(), prev = t0, phase = 0, prevPhase = 0, tickN = 0;
     var fpsAcc = 0, fpsN = 0;
     var SPEED = 0.55;   // passadas por segundo: solene, não frenético
-    var pivot = toWorld(760, ANAT.GROUND);
+    var COLLECT = 0.45; // flexão na nuca, em radianos, no auge da levade
+    var pivot = toWorld(660, ANAT.GROUND);
 
     (function frame(now) {
       requestAnimationFrame(frame);
@@ -989,14 +1036,14 @@
       phase = (phase + dt * SPEED * S.gait) % 1;
 
       var bob = bodyBob(phase) * S.gait;
-      var chains = updateLegs(phase, bob);
+      var chains = updateLegs(phase, bob, S.rear);
 
       // batida no ritmo dos quatro tempos da marcha
       var beat = 0;
       for (var f = 0; f < 4; f++) {
         var d = Math.abs(((phase - FOOTFALL[f]) % 1 + 1.5) % 1 - 0.5);
         beat = Math.max(beat, Math.exp(-d * d * 900));
-        if (S.gait > 0.25 && prevPhase < FOOTFALL[f] && phase >= FOOTFALL[f]) {
+        if (S.gait > 0.25 && S.rear < 0.3 && prevPhase < FOOTFALL[f] && phase >= FOOTFALL[f]) {
           spawnDust(chains[f].pts[3]);
         }
       }
@@ -1019,11 +1066,12 @@
       U.uSway.value = 0.35 + S.gait * 0.8;
       U.uDim.value = S.dim * dimFactor;
       U.uPulse.value = S.pulse * beat * 0.5;
+      U.uCollect.value = COLLECT * S.rear;
       U.uBolt.value = S.bolt;
       U.uStar.value = S.star;
       // O ponto acompanha só parte da escala do grupo: assim o Pégaso
       // recuado continua legível e a constelação não vira bolotas.
-      U.uScale.value = baseScale * (0.55 + 0.45 * S.scale) * (1 - 0.22 * S.wing);
+      U.uScale.value = baseScale * (0.55 + 0.45 * S.scale) * (1 - 0.14 * S.wing);
       WU.uWing.value = S.wing;
       WU.uBeat.value = S.beat;
       lmat.opacity = S.star * 0.5;
@@ -1032,12 +1080,15 @@
       // bloco alado tem o centro ~166 unidades de tela acima do centro do
       // cavalo. Recuar a escala e recentrar por cálculo evita cortar a
       // ponta da asa em qualquer viewport.
-      var sc = baseScale * S.scale * (1 - 0.30 * S.wing);
-      var xf = camera.aspect < 1.1 ? 0.45 : 1;
+      // Em tela estreita a envergadura não cabe ao lado do texto: o
+      // conjunto alado encolhe mais e recua para o centro, virando fundo.
+      var narrowV = camera.aspect < 1.1;
+      var sc = baseScale * S.scale * (1 - 0.30 * S.wing) * (narrowV ? 1 - 0.26 * S.wing : 1);
+      var xf = narrowV ? 0.30 : 1;
       outer.scale.setScalar(sc);
       outer.position.set(S.x * xf * vw * 0.5,
-                         S.y * vh * 0.5 - 166 * SCALE * sc * S.wing, 0);
-      var rot = -S.rear * 0.44;
+                         S.y * vh * 0.5 - 160 * SCALE * sc * S.wing, 0);
+      var rot = -S.rear * 0.42;
       inner.rotation.z = rot;
       var c = Math.cos(rot), sn = Math.sin(rot);
       inner.position.set(pivot[0] - (pivot[0] * c - pivot[1] * sn),
