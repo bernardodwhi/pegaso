@@ -27,6 +27,14 @@
 
 <a class="skip" href="#conteudo">Pular para o conteúdo</a>
 
+<!-- Palco fixo: uma única nuvem de partículas percorre e transforma
+     a página inteira, em vez de um enfeite preso ao herói. -->
+<div class="stage" id="stage" aria-hidden="true">
+  <canvas id="horseCanvas"></canvas>
+  <div class="stage__glow" id="stageGlow"></div>
+</div>
+
+
 <header class="nav" id="nav">
   <a class="nav__brand" href="#inicio" aria-label="Pégaso, página inicial">
     <svg class="nav__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -47,10 +55,23 @@
 
   <!-- ( 01 ) HERÓI -->
   <section class="hero" id="inicio">
-    <div class="hero__stage" aria-hidden="true">
-      <canvas id="horseCanvas"></canvas>
-      <div class="hero__glow"></div>
-    </div>
+      <div class="emblem" id="emblem" hidden aria-hidden="true">
+        <svg viewBox="60 -310 940 1010" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M96 258 C128 200 158 150 190 104 C252 98 330 132 392 202 C408 196 422 176 448 184 C496 200 530 230 578 238 C624 244 664 224 700 206 C728 197 750 200 768 214 C778 221 792 246 796 286 C800 330 788 366 762 392 C738 410 716 414 694 408 C650 416 596 430 534 434 C470 436 410 430 358 420 C332 414 314 398 308 374 C300 334 284 288 262 234 C256 220 248 208 242 198 C240 224 234 248 220 266 C194 286 158 298 126 299 C106 299 92 288 90 272 C89 264 92 259 96 258 Z" stroke-width="2"/>
+          <path d="M192 98 C214 82 252 80 282 92 C316 106 350 142 384 192" stroke-width="1.6"/>
+          <path d="M180 112 L166 60 L198 100 M204 102 L214 52 L228 104" stroke-width="1.6"/>
+          <path d="M745 205 C800 196 860 240 900 320 C925 372 940 450 936 552" stroke-width="1.8"/>
+          <path d="M936 552 C930 470 916 400 890 340 C862 274 812 236 750 230" stroke-width="1.8"/>
+          <path d="M358 386 L355 524 L355 628 L340 658 M334 392 L331 530 L331 634 L307 658
+                   M736 372 L782 519 L764 628 L749 658 M764 370 L810 517 L792 626 L781 658" stroke-width="3"/>
+          <path d="M430 232 C474 120 566 -30 682 -150 C736 -206 790 -262 814 -278
+                   C876 -206 916 -120 922 -44 C912 40 870 122 800 190
+                   C724 264 620 316 498 336 C468 306 440 268 430 232 Z" stroke-width="2"/>
+          <path d="M470 150 C484 220 492 290 498 336 M574 -12 C620 80 660 180 688 258
+                   M682 -168 C742 -80 800 20 842 124 M778 -278 C830 -190 880 -110 922 -44"
+                stroke-width="1.4" opacity=".72"/>
+        </svg>
+      </div>
     <div class="hero__copy">
       <p class="label">( PÉGASO ) &mdash; ANÁLISE DE MARCHA + OLIMPO</p>
       <h1 class="hero__title">Seu cavalo não precisa de mais fotos.<br><em>Precisa ser eternizado.</em></h1>
@@ -92,17 +113,18 @@
                 <div class="rep__bars">
                   <div class="rep__row"><span>DIAGONAL DIREITA</span><span class="rep__track"><i data-fill="86"></i></span><b>86</b></div>
                   <div class="rep__row"><span>DIAGONAL ESQUERDA</span><span class="rep__track"><i data-fill="82"></i></span><b>82</b></div>
+                  <div class="rep__row"><span>TRÍPLICE APOIO</span><span class="rep__track"><i data-fill="68"></i></span><b>68</b></div>
                   <div class="rep__row"><span>SOBREPEGADA</span><span class="rep__track"><i data-fill="74"></i></span><b>74</b></div>
                   <div class="rep__row"><span>REGULARIDADE</span><span class="rep__track"><i data-fill="93"></i></span><b>93</b></div>
                 </div>
                 <div class="rep__skel">
                   <span class="label">( ARTICULAÇÕES )</span>
-                  <svg viewBox="0 0 1000 700" class="skel" aria-hidden="true" focusable="false">
+<svg viewBox="70 60 920 620" class="skel" aria-hidden="true" focusable="false">
                     <g class="skel__wire" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M150 262 C139 279 147 297 176 303 C215 301 261 255 292 200 C320 262 366 331 414 392 C438 412 454 430 472 448 C528 470 608 478 686 470 C748 464 796 446 838 404 C866 376 884 330 886 282 C884 250 866 232 840 228 C772 220 690 246 596 224 C510 178 392 132 300 120 C282 116 264 113 250 116 C224 158 186 214 150 262 Z" stroke-width="7"/>
-                      <path d="M452 400 L410 505 L372 592 L350 640 M494 412 L540 515 L585 592 L618 634 M812 344 L760 455 L800 530 L790 600 L782 646 M852 358 L872 458 L884 548 L890 634 M874 246 L930 288 L958 358 L972 440 L978 520" stroke-width="13"/>
+                      <path d="M96 258 C128 200 158 150 190 104 C252 98 330 132 392 202 C408 196 422 176 448 184 C496 200 530 230 578 238 C624 244 664 224 700 206 C728 197 750 200 768 214 C778 221 792 246 796 286 C800 330 788 366 762 392 C738 410 716 414 694 408 C650 416 596 430 534 434 C470 436 410 430 358 420 C332 414 314 398 308 374 C300 334 284 288 262 234 C256 220 248 208 242 198 C240 224 234 248 220 266 C194 286 158 298 126 299 C106 299 92 288 90 272 C89 264 92 259 96 258 Z" stroke-width="7"/>
+                      <path d="M358 386 L355 524 L355 628 L340 658 M334 392 L331 530 L331 634 L307 658 M736 372 L782 519 L764 628 L749 658 M764 370 L810 517 L792 626 L781 658 M732 226 L806 222 L858 262 L900 332 L926 414 L938 494 L934 554" stroke-width="13"/>
                     </g>
-                    <g class="skel__joints" id="gaitJoints"><circle cx="250" cy="116" r="15"/><circle cx="292" cy="200" r="15"/><circle cx="452" cy="400" r="15"/><circle cx="410" cy="505" r="15"/><circle cx="372" cy="592" r="15"/><circle cx="494" cy="412" r="15"/><circle cx="596" cy="224" r="15"/><circle cx="812" cy="344" r="15"/><circle cx="800" cy="530" r="15"/><circle cx="790" cy="600" r="15"/><circle cx="886" cy="282" r="15"/><circle cx="860" cy="235" r="15"/></g>
+                    <g class="skel__joints" id="gaitJoints"><circle cx="190" cy="104" r="15"/><circle cx="242" cy="198" r="15"/><circle cx="448" cy="184" r="15"/><circle cx="700" cy="206" r="15"/><circle cx="358" cy="386" r="15"/><circle cx="355" cy="524" r="15"/><circle cx="355" cy="628" r="15"/><circle cx="334" cy="392" r="15"/><circle cx="736" cy="372" r="15"/><circle cx="782" cy="519" r="15"/><circle cx="764" cy="628" r="15"/><circle cx="796" cy="286" r="15"/></g>
                   </svg>
                 </div>
                 <div class="rep__verdict">
@@ -377,7 +399,10 @@
 
   <!-- ( 10 ) ENCERRAMENTO -->
   <section class="end" id="contato">
-    <canvas id="constCanvas" aria-hidden="true"></canvas>
+    <!-- A cena do final é longa e o miolo fica grudado (sticky): dá espaço
+         de rolagem para empinar, bater a asa, virar raio e recompor a
+         constelação, sem um segundo pin de ScrollTrigger. -->
+    <div class="end__sticky">
     <img class="end__bg" src="https://images.unsplash.com/photo-1598362042346-70c59713811f?w=1600&q=80"
          alt="Silhuetas de cavalos recortadas contra o céu no fim da tarde" width="1600" height="1067" loading="lazy" decoding="async">
     <div class="end__inner">
@@ -385,6 +410,7 @@
       <h2 class="end__title">Todo grande cavalo merece <em>um lugar no Olimpo</em>.</h2>
       <p class="end__lead">Comece pelo animal de vitrine do seu haras. Em uma semana ele tem laudo, ficha e QR code.</p>
       <a class="btn btn--gold" href="mailto:contato@pegaso.com.br?subject=Quero%20conhecer%20o%20P%C3%A9gaso">FALAR COM O PÉGASO</a>
+    </div>
     </div>
   </section>
 </main>
