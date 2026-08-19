@@ -98,7 +98,10 @@ curtas e cauda cheia de inserção alta.
 
 Os membros têm rig próprio: cada partícula guarda em que membro, segmento e
 posição interna vive, e a pose é recalculada a cada quadro por cinemática
-direta. A quartela é resolvida por IK contra a linha do solo, para o casco
+direta. A cabeça também é articulada: cada partícula do tronco carrega um peso
+de nuca, 1 na cabeça e nas orelhas, 0 no pescoço, com uma faixa de transição de
+~110px na fauce — na levade só a cabeça gira, em torno da nuca, para a face
+ficar próxima da vertical em vez de acompanhar rigidamente o giro do tronco. A quartela é resolvida por IK contra a linha do solo, para o casco
 assentar plano em vez de flutuar nos extremos do apoio.
 
 O ciclo é de **marcha** — quatro tempos, sem suspensão, apoio ocupando 62% do
@@ -121,7 +124,7 @@ monótona na rolagem, imune à ordem em que gatilhos disparam durante um salto.
 | a marcha | grande e apagado atrás de tudo, pulsando no ritmo dos cascos |
 | Olimpo | as asas se abrem pena a pena — coberteiras, secundárias e primárias em camadas — quando a ficha entra |
 | comparativo → FAQ | recuado e discreto, sem competir com os dados |
-| encerramento | levade (peso nos posteriores, anteriores recolhidos, asas plenas), bate a asa, vira raio e se recompõe na constelação de Pégaso |
+| encerramento | levade colecionada (peso nos posteriores, anteriores recolhidos, nuca flexionada, asas plenas), bate a asa, vira raio e se recompõe na constelação de Pégaso |
 
 O encerramento é uma cena longa com o miolo *sticky*: dá espaço de rolagem sem
 um segundo pin de ScrollTrigger, que desincronizava com o pin da marcha.

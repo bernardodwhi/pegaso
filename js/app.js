@@ -513,6 +513,24 @@
   /* =======================================================
      ( 05 ) NUVEM: CORPO AMOSTRADO + MEMBROS COM ESQUELETO
      ======================================================= */
+  // Colecionamento: na levade o pescoço já fica vertical pelo próprio giro
+  // do tronco — o que falta é a FLEXÃO NA NUCA. Só a cabeça gira, em torno
+  // da nuca, com uma faixa de transição de ~110px na fauce para a máscara
+  // única do tronco não abrir costura. O corte vai da nuca à garganta.
+  var POLL = [271, 105], THROAT = [300, 262];
+
+  function headWeight(px, py) {
+    var cx = THROAT[0] - POLL[0], cy = THROAT[1] - POLL[1];
+    var L = Math.hypot(cx, cy);
+    var d = ((px - POLL[0]) * cy - (py - POLL[1]) * cx) / L;  // <0 = lado da cabeça
+    var side = clamp((55 - d) / 110, 0, 1);
+    // e limitada ao alcance da cabeça, senão o corte prolongado arrastaria
+    // a borda dianteira do pescoço inteiro
+    var near = clamp((300 - Math.hypot(px - POLL[0], py - POLL[1])) / 65, 0, 1);
+    var w = side * near;
+    return w * w * (3 - 2 * w);
+  }
+
   var PART = { BODY: 0, MANE: 1, TAIL: 2, LEG: 3 };
   var SCALE = 0.118;
 
@@ -565,6 +583,7 @@
     var aSeed = new Float32Array(count);
     var aPart = new Float32Array(count);
     var aRoot = new Float32Array(count);
+    var aHead = new Float32Array(count);
 
     var GOLD = [0.788, 0.635, 0.153], CHAMP = [0.902, 0.784, 0.478], BRONZE = [0.549, 0.416, 0.184];
     var seeds = legSeeds(nLeg);
@@ -589,6 +608,7 @@
       position[i * 3] = w[0];
       position[i * 3 + 1] = w[1];
       position[i * 3 + 2] = (Math.random() * 2 - 1) * (isEdge ? 3.4 : 8.4);
+      aHead[i] = headWeight(px, py);
       if (i < nBody) { aPart[i] = PART.BODY; aRoot[i] = 0; }
       else if (i < nBody + nMane) {
         aPart[i] = PART.MANE;
@@ -623,7 +643,7 @@
     return {
       count: count, nSampled: nSampled, nLeg: nLeg, seeds: seeds,
       position: position, aColor: aColor, aSize: aSize, aSeed: aSeed,
-      aPart: aPart, aRoot: aRoot, aBolt: aBolt, aStar: aStar
+      aPart: aPart, aRoot: aRoot, aHead: aHead, aBolt: aBolt, aStar: aStar
     };
   }
 
@@ -668,12 +688,18 @@
      ======================================================= */
   var HORSE_VERT = [
     'attribute float aSize; attribute float aSeed; attribute float aPart; attribute float aRoot;',
+    'attribute float aHead;',
     'attribute vec3 aColor; attribute vec3 aBolt; attribute vec3 aStar;',
     'uniform float uTime; uniform float uPixel; uniform float uScale; uniform float uBob;',
     'uniform float uSway; uniform float uBolt; uniform float uStar; uniform float uDim; uniform float uPulse;',
+    'uniform float uCollect; uniform vec2 uPoll;',
     'varying vec3 vColor; varying float vAlpha;',
     'void main(){',
     '  vec3 p = position;',
+    '  // flexão na nuca: só a cabeça gira, e antes do giro do tronco',
+    '  float ca = uCollect * aHead;',
+    '  vec2 hr = p.xy - uPoll;',
+    '  p.xy = uPoll + vec2(hr.x * cos(ca) - hr.y * sin(ca), hr.x * sin(ca) + hr.y * cos(ca));',
     '  float mane = step(0.5, aPart) * step(aPart, 1.5);',
     '  float tail = step(1.5, aPart) * step(aPart, 2.5);',
     '  float leg  = step(2.5, aPart);',
@@ -783,11 +809,13 @@
     geo.setAttribute('aSeed', attr(cloud.aSeed, 1));
     geo.setAttribute('aPart', attr(cloud.aPart, 1));
     geo.setAttribute('aRoot', attr(cloud.aRoot, 1));
+    geo.setAttribute('aHead', attr(cloud.aHead, 1));
     geo.attributes.position.setUsage(THREE.DynamicDrawUsage);
 
     var U = {
       uTime: { value: 0 }, uPixel: { value: DPR }, uScale: { value: 1 }, uBob: { value: 0 },
-      uSway: { value: 1 }, uBolt: { value: 0 }, uStar: { value: 0 }, uDim: { value: 1 }, uPulse: { value: 0 }
+      uSway: { value: 1 }, uBolt: { value: 0 }, uStar: { value: 0 }, uDim: { value: 1 }, uPulse: { value: 0 },
+      uCollect: { value: 0 }, uPoll: { value: new THREE.Vector2() }
     };
     var horsePts = new THREE.Points(geo, new THREE.ShaderMaterial({
       uniforms: U, vertexShader: HORSE_VERT, fragmentShader: POINT_FRAG,
@@ -802,6 +830,8 @@
     wgeo.setAttribute('aSize', attr(wings.aSize, 1));
     wgeo.setAttribute('aSeed', attr(wings.aSeed, 1));
     wgeo.setAttribute('aOrder', attr(wings.aOrder, 1));
+    var pollW = toWorld(POLL[0], POLL[1]);
+    U.uPoll.value.set(pollW[0], pollW[1]);
     var rootW = toWorld(WING.ROOT[0], WING.ROOT[1]);
     var WU = {
       uTime: U.uTime, uPixel: U.uPixel, uScale: U.uScale, uBob: U.uBob,
@@ -848,7 +878,12 @@
     /* --- estado dirigido pela rolagem ------------------- */
     var S = { x: 0.30, y: 0.03, scale: 1, gait: 1, sway: 1, wing: 0, dim: 1, pulse: 0, rear: 0, beat: 0, bolt: 0, star: 0 };
     var T = {}; for (var kk in S) T[kk] = S[kk];
-    if (window.PEGASO) { window.PEGASO.S = S; window.PEGASO.T = T; window.PEGASO.counts = { cloud: cloud.count, legs: cloud.nLeg, wings: wings.count }; }
+    if (window.PEGASO) {
+      window.PEGASO.S = S; window.PEGASO.T = T;
+      window.PEGASO.counts = { cloud: cloud.count, legs: cloud.nLeg, wings: wings.count };
+      window.PEGASO.force = function (o) { for (var k in o) { T[k] = o[k]; S[k] = o[k]; } };
+      window.PEGASO.setCollect = function (v) { COLLECT = v; };
+    }
 
     // Cada cena entra quando o topo do seu elemento cruza uma linha da
     // viewport, e vale a ÚLTIMA cena cruzada. É monótono na rolagem e
@@ -985,6 +1020,7 @@
     var t0 = performance.now(), prev = t0, phase = 0, prevPhase = 0, tickN = 0;
     var fpsAcc = 0, fpsN = 0;
     var SPEED = 0.55;   // passadas por segundo: solene, não frenético
+    var COLLECT = 0.45; // flexão na nuca, em radianos, no auge da levade
     var pivot = toWorld(660, ANAT.GROUND);
 
     (function frame(now) {
@@ -1030,6 +1066,7 @@
       U.uSway.value = 0.35 + S.gait * 0.8;
       U.uDim.value = S.dim * dimFactor;
       U.uPulse.value = S.pulse * beat * 0.5;
+      U.uCollect.value = COLLECT * S.rear;
       U.uBolt.value = S.bolt;
       U.uStar.value = S.star;
       // O ponto acompanha só parte da escala do grupo: assim o Pégaso
